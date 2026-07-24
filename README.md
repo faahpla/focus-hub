@@ -97,5 +97,6 @@ projetos, ideias, temas e backup. Próximos passos em `ROADMAP` abaixo.
 - [x] Relatório de fim de sessão (resumo + XP animado + conquistas)
 - [x] Música via playlists do YouTube (mini-player persistente, troca de playlists)
 - [ ] Sons ambientes com samples reais (opt-in, baixados sob demanda)
+- [x] Empacotamento: instalador NSIS + ícone + auto-atualização (GitHub Releases)
 - [ ] Sincronização/backup automático agendado
-- [ ] Ícone e assets finais + empacotamento assinado
+- [ ] Assinatura de código (evitar aviso do SmartScreen)
