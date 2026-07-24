@@ -11,7 +11,7 @@ files:
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,package-lock.json}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tailwind.config.js,postcss.config.js}'
-  - '!{start-app.bat,start-dev.bat,electron-builder.yml}'
+  - '!{start-app.bat,start-dev.bat,build-installer.bat,electron-builder.yml}'
 asarUnpack:
   - resources/**
 win:
