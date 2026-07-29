@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, FolderKanban, Home, Lightbulb, Settings } from 'lucide-react'
+import { BarChart3, FolderKanban, Home, KanbanSquare, Lightbulb, Settings } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app-store'
 const NAV = [
   { to: '/', icon: Home, label: 'Início' },
   { to: '/projects', icon: FolderKanban, label: 'Projetos' },
+  { to: '/boards', icon: KanbanSquare, label: 'Quadros' },
   { to: '/ideas', icon: Lightbulb, label: 'Ideias' },
   { to: '/stats', icon: BarChart3, label: 'Estatísticas' },
   { to: '/settings', icon: Settings, label: 'Ajustes' }

@@ -3,6 +3,8 @@ import { IPC } from '../shared/ipc'
 import type { FocusHubApi } from '../shared/ipc'
 import type {
   AppData,
+  Board,
+  BoardCard,
   FlowConfig,
   Idea,
   Project,
@@ -21,6 +23,11 @@ const api: FocusHubApi = {
   deleteTask: (id: string) => ipcRenderer.invoke(IPC.TASKS_DELETE, id),
   saveIdea: (i: Idea) => ipcRenderer.invoke(IPC.IDEAS_SAVE, i),
   deleteIdea: (id: string) => ipcRenderer.invoke(IPC.IDEAS_DELETE, id),
+  saveBoard: (b: Board) => ipcRenderer.invoke(IPC.BOARDS_SAVE, b),
+  deleteBoard: (id: string) => ipcRenderer.invoke(IPC.BOARDS_DELETE, id),
+  saveCard: (c: BoardCard) => ipcRenderer.invoke(IPC.CARDS_SAVE, c),
+  saveCards: (cards: BoardCard[]) => ipcRenderer.invoke(IPC.CARDS_SAVE_MANY, cards),
+  deleteCard: (id: string) => ipcRenderer.invoke(IPC.CARDS_DELETE, id),
   recordSession: (s: Session) => ipcRenderer.invoke(IPC.SESSIONS_RECORD, s),
   saveStats: (s: Stats) => ipcRenderer.invoke(IPC.STATS_SAVE, s),
   saveSettings: (s: Settings) => ipcRenderer.invoke(IPC.SETTINGS_SAVE, s),
@@ -33,6 +40,7 @@ const api: FocusHubApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC.APP_GET_INFO),
   relaunchElevated: () => ipcRenderer.send(IPC.APP_RELAUNCH_ELEVATED),
   pickPath: (kind) => ipcRenderer.invoke(IPC.PICK_PATH, kind),
+  openPath: (value: string) => ipcRenderer.invoke(IPC.OPEN_PATH, value),
 
   minimize: () => ipcRenderer.send(IPC.WIN_MINIMIZE),
   toggleMaximize: () => ipcRenderer.send(IPC.WIN_MAXIMIZE),

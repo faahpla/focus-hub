@@ -1,8 +1,10 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { promises as fs } from 'node:fs'
 import { IPC } from '../../shared/ipc'
 import type {
   AppData,
+  Board,
+  BoardCard,
   FlowConfig,
   Idea,
   Project,
@@ -36,6 +38,11 @@ export function registerIpc({ repo, flow, windows }: Deps): void {
   ipcMain.handle(IPC.TASKS_DELETE, (_e, id: string) => changed(repo.deleteTask(id)))
   ipcMain.handle(IPC.IDEAS_SAVE, (_e, i: Idea) => changed(repo.saveIdea(i)))
   ipcMain.handle(IPC.IDEAS_DELETE, (_e, id: string) => changed(repo.deleteIdea(id)))
+  ipcMain.handle(IPC.BOARDS_SAVE, (_e, b: Board) => changed(repo.saveBoard(b)))
+  ipcMain.handle(IPC.BOARDS_DELETE, (_e, id: string) => changed(repo.deleteBoard(id)))
+  ipcMain.handle(IPC.CARDS_SAVE, (_e, c: BoardCard) => changed(repo.saveCard(c)))
+  ipcMain.handle(IPC.CARDS_SAVE_MANY, (_e, cards: BoardCard[]) => changed(repo.saveCards(cards)))
+  ipcMain.handle(IPC.CARDS_DELETE, (_e, id: string) => changed(repo.deleteCard(id)))
   ipcMain.handle(IPC.SESSIONS_RECORD, (_e, s: Session) => changed(repo.recordSession(s)))
   ipcMain.handle(IPC.STATS_SAVE, (_e, s: Stats) => changed(repo.saveStats(s)))
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, s: Settings) => changed(repo.saveSettings(s)))
@@ -79,6 +86,22 @@ export function registerIpc({ repo, flow, windows }: Deps): void {
       properties: [kind === 'folder' ? 'openDirectory' : 'openFile']
     })
     return res.canceled ? null : res.filePaths[0] ?? null
+  })
+
+  ipcMain.handle(IPC.OPEN_PATH, async (_e, value: string) => {
+    const target = value.trim()
+    if (!target) return false
+    try {
+      if (/^https?:\/\//i.test(target)) {
+        await shell.openExternal(target)
+        return true
+      }
+      // shell.openPath resolves to an error string (empty means success).
+      const err = await shell.openPath(target)
+      return err === ''
+    } catch {
+      return false
+    }
   })
 
   // ---- Window controls ----

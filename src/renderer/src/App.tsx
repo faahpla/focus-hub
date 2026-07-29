@@ -6,6 +6,7 @@ import { UltraFocusOverlay } from '@/features/session/ultra-focus-overlay'
 import { SessionReportOverlay } from '@/features/session/session-report'
 import { HomePage } from '@/features/home/home-page'
 import { ProjectsPage } from '@/features/projects/projects-page'
+import { BoardsPage } from '@/features/boards/boards-page'
 import { IdeasPage } from '@/features/ideas/ideas-page'
 import { StatsPage } from '@/features/stats/stats-page'
 import { SettingsPage } from '@/features/settings/settings-page'
@@ -58,6 +59,7 @@ function MainApp(): JSX.Element {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/boards" element={<BoardsPage />} />
           <Route path="/ideas" element={<IdeasPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

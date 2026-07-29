@@ -5,6 +5,8 @@
 
 import type {
   AppData,
+  Board,
+  BoardCard,
   FlowApplyResult,
   FlowConfig,
   Idea,
@@ -25,6 +27,11 @@ export const IPC = {
   TASKS_DELETE: 'tasks:delete',
   IDEAS_SAVE: 'ideas:save',
   IDEAS_DELETE: 'ideas:delete',
+  BOARDS_SAVE: 'boards:save',
+  BOARDS_DELETE: 'boards:delete',
+  CARDS_SAVE: 'cards:save',
+  CARDS_SAVE_MANY: 'cards:saveMany',
+  CARDS_DELETE: 'cards:delete',
   SESSIONS_RECORD: 'sessions:record',
   STATS_SAVE: 'stats:save',
   SETTINGS_SAVE: 'settings:save',
@@ -38,6 +45,7 @@ export const IPC = {
   APP_GET_INFO: 'app:getInfo',
   APP_RELAUNCH_ELEVATED: 'app:relaunchElevated',
   PICK_PATH: 'os:pickPath',
+  OPEN_PATH: 'os:openPath',
 
   // Window controls
   WIN_MINIMIZE: 'win:minimize',
@@ -65,6 +73,11 @@ export interface FocusHubApi {
   deleteTask(id: string): Promise<AppData>
   saveIdea(idea: Idea): Promise<AppData>
   deleteIdea(id: string): Promise<AppData>
+  saveBoard(board: Board): Promise<AppData>
+  deleteBoard(id: string): Promise<AppData>
+  saveCard(card: BoardCard): Promise<AppData>
+  saveCards(cards: BoardCard[]): Promise<AppData>
+  deleteCard(id: string): Promise<AppData>
   recordSession(session: Session): Promise<AppData>
   saveStats(stats: Stats): Promise<AppData>
   saveSettings(settings: Settings): Promise<AppData>
@@ -77,6 +90,8 @@ export interface FocusHubApi {
   getAppInfo(): Promise<{ isPackaged: boolean; elevated: boolean }>
   relaunchElevated(): void
   pickPath(kind: 'file' | 'folder'): Promise<string | null>
+  /** Open a local path in Explorer/default app, or a URL in the browser. */
+  openPath(value: string): Promise<boolean>
 
   minimize(): void
   toggleMaximize(): void

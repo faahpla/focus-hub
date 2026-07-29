@@ -2,6 +2,8 @@ import Store from 'electron-store'
 import { randomUUID } from 'node:crypto'
 import type {
   AppData,
+  Board,
+  BoardCard,
   Idea,
   Project,
   Session,
@@ -110,6 +112,8 @@ function defaultData(): AppData {
     projects: seed.projects,
     tasks: seed.tasks,
     ideas: [],
+    boards: [],
+    cards: [],
     sessions: [],
     stats: DEFAULT_STATS,
     settings: DEFAULT_SETTINGS
@@ -156,9 +160,20 @@ export class Repository {
       data.stats.achievements = DEFAULT_STATS.achievements
       changed = true
     }
-    for (const key of ['projects', 'tasks', 'ideas', 'sessions'] as const) {
+    for (const key of ['projects', 'tasks', 'ideas', 'boards', 'cards', 'sessions'] as const) {
       if (!Array.isArray(data[key])) {
         ;(data[key] as unknown[]) = []
+        changed = true
+      }
+    }
+    // Cards gained `assets` after the first Kanban release.
+    for (const card of data.cards) {
+      if (!Array.isArray(card.assets)) {
+        card.assets = []
+        changed = true
+      }
+      if (!Array.isArray(card.tags)) {
+        card.tags = []
         changed = true
       }
     }
@@ -190,7 +205,16 @@ export class Repository {
   deleteProject(id: string): AppData {
     const data = this.getAll()
     data.projects = data.projects.filter((p) => p.id !== id)
+    const orphanTasks = new Set(data.tasks.filter((t) => t.projectId === id).map((t) => t.id))
     data.tasks = data.tasks.filter((t) => t.projectId !== id)
+    // Boards survive a deleted project — they just lose the link, and any card
+    // that pointed at one of the removed tasks becomes a plain card again.
+    data.boards = data.boards.map((b) =>
+      b.projectId === id ? { ...b, projectId: undefined, updatedAt: now() } : b
+    )
+    data.cards = data.cards.map((c) =>
+      c.taskId && orphanTasks.has(c.taskId) ? { ...c, taskId: undefined, updatedAt: now() } : c
+    )
     return this.setAll(data)
   }
 
@@ -215,6 +239,51 @@ export class Repository {
   deleteTask(id: string): AppData {
     const data = this.getAll()
     data.tasks = data.tasks.filter((t) => t.id !== id)
+    // Any card that mirrored this task falls back to being a plain card.
+    data.cards = data.cards.map((c) =>
+      c.taskId === id ? { ...c, taskId: undefined, updatedAt: now() } : c
+    )
+    return this.setAll(data)
+  }
+
+  saveBoard(board: Board): AppData {
+    const data = this.getAll()
+    const idx = data.boards.findIndex((b) => b.id === board.id)
+    board.updatedAt = now()
+    if (idx >= 0) data.boards[idx] = board
+    else data.boards.push({ ...board, order: data.boards.length })
+    return this.setAll(data)
+  }
+
+  deleteBoard(id: string): AppData {
+    const data = this.getAll()
+    data.boards = data.boards.filter((b) => b.id !== id)
+    // Cards belong to their board; linked tasks are intentionally kept.
+    data.cards = data.cards.filter((c) => c.boardId !== id)
+    return this.setAll(data)
+  }
+
+  saveCard(card: BoardCard): AppData {
+    const data = this.getAll()
+    const idx = data.cards.findIndex((c) => c.id === card.id)
+    card.updatedAt = now()
+    if (idx >= 0) data.cards[idx] = card
+    else data.cards.push(card)
+    return this.setAll(data)
+  }
+
+  /** Upsert several cards at once (used when dragging between columns). */
+  saveCards(cards: BoardCard[]): AppData {
+    const data = this.getAll()
+    const byId = new Map(data.cards.map((c) => [c.id, c]))
+    for (const card of cards) byId.set(card.id, { ...card, updatedAt: now() })
+    data.cards = Array.from(byId.values())
+    return this.setAll(data)
+  }
+
+  deleteCard(id: string): AppData {
+    const data = this.getAll()
+    data.cards = data.cards.filter((c) => c.id !== id)
     return this.setAll(data)
   }
 

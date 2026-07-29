@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type {
   AppData,
+  Board,
+  BoardCard,
   Idea,
   Project,
   Session,
@@ -21,6 +23,11 @@ interface AppState extends AppData {
   deleteTask: (id: string) => Promise<void>
   saveIdea: (idea: Idea) => Promise<void>
   deleteIdea: (id: string) => Promise<void>
+  saveBoard: (board: Board) => Promise<void>
+  deleteBoard: (id: string) => Promise<void>
+  saveCard: (card: BoardCard) => Promise<void>
+  saveCards: (cards: BoardCard[]) => Promise<void>
+  deleteCard: (id: string) => Promise<void>
   recordSession: (session: Session) => Promise<void>
   saveStats: (stats: Stats) => Promise<void>
   saveSettings: (patch: Partial<Settings>) => Promise<void>
@@ -30,6 +37,8 @@ const EMPTY: AppData = {
   projects: [],
   tasks: [],
   ideas: [],
+  boards: [],
+  cards: [],
   sessions: [],
   stats: {
     xp: 0,
@@ -78,6 +87,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteTask: async (id) => set({ ...(await window.focusHub.deleteTask(id)) }),
   saveIdea: async (idea) => set({ ...(await window.focusHub.saveIdea(idea)) }),
   deleteIdea: async (id) => set({ ...(await window.focusHub.deleteIdea(id)) }),
+  saveBoard: async (board) => set({ ...(await window.focusHub.saveBoard(board)) }),
+  deleteBoard: async (id) => set({ ...(await window.focusHub.deleteBoard(id)) }),
+  saveCard: async (card) => set({ ...(await window.focusHub.saveCard(card)) }),
+  saveCards: async (cards) => set({ ...(await window.focusHub.saveCards(cards)) }),
+  deleteCard: async (id) => set({ ...(await window.focusHub.deleteCard(id)) }),
   recordSession: async (session) => set({ ...(await window.focusHub.recordSession(session)) }),
   saveStats: async (stats) => set({ ...(await window.focusHub.saveStats(stats)) }),
   saveSettings: async (patch) => {

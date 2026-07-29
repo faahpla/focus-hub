@@ -165,7 +165,7 @@ export function TaskDetailDialog({
             </div>
           </div>
 
-          {/* Description */}
+          {/* Description — resizable, since it often holds a whole script. */}
           <div>
             <p className="mb-2 text-sm font-medium">Descrição</p>
             <textarea
@@ -173,8 +173,11 @@ export function TaskDetailDialog({
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => description !== (task.description ?? '') && patch({ description })}
               placeholder="Adicione detalhes, links, contexto…"
-              className="no-drag min-h-[80px] w-full resize-none rounded-xl border border-input bg-surface/60 px-3.5 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/60 scrollbar-thin"
+              className="no-drag min-h-[100px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3.5 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/60 scrollbar-thin"
             />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Arraste o canto inferior direito para aumentar a caixa.
+            </p>
           </div>
 
           {/* Tags */}

@@ -99,6 +99,66 @@ export interface Idea {
   archived: boolean
 }
 
+/** A single lane of a Kanban board (e.g. "Roteiro", "Gravação"). */
+export interface BoardColumn {
+  id: ID
+  name: string
+  color: string // hsl string
+  order: number
+}
+
+/**
+ * A Kanban board. Columns live inline (there are only a handful and they always
+ * move with the board); cards are kept in a flat list so drag-and-drop between
+ * columns is a single field update.
+ */
+export interface Board {
+  id: ID
+  name: string
+  icon: string // lucide icon name
+  color: string // hsl string
+  description?: string
+  /** Optional link to a project — gives cards a project to inherit. */
+  projectId?: ID
+  columns: BoardColumn[]
+  createdAt: string
+  updatedAt: string
+  archived: boolean
+  order: number
+}
+
+/** Something attached to a card: a link, a local path, or a plain text note. */
+export interface CardAsset {
+  id: ID
+  label: string
+  /** A URL, a local file/folder path, or free text. */
+  value: string
+  /** 'text' entries are copy-only; links and paths can also be opened. */
+  kind?: 'link' | 'path' | 'text'
+}
+
+/** A card on a board. Lightweight by default; may be linked to a real Task. */
+export interface BoardCard {
+  id: ID
+  boardId: ID
+  columnId: ID
+  title: string
+  /** The long-form body — the script itself. Read in "Modo leitura". */
+  notes?: string
+  /** Publish-ready description, kept apart from the script for easy copying. */
+  description?: string
+  /** Publish-ready hashtags, stored verbatim so copy/paste round-trips. */
+  hashtags?: string
+  assets: CardAsset[]
+  tags: string[]
+  /** When set, this card mirrors a Task (checklist, priority, sessions). */
+  taskId?: ID
+  dueDate?: string // ISO
+  createdAt: string
+  updatedAt: string
+  order: number
+}
+
 export type SessionState = 'idle' | 'running' | 'paused' | 'finished'
 
 export interface Session {
@@ -167,6 +227,8 @@ export interface AppData {
   projects: Project[]
   tasks: Task[]
   ideas: Idea[]
+  boards: Board[]
+  cards: BoardCard[]
   sessions: Session[]
   stats: Stats
   settings: Settings

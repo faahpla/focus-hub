@@ -59,9 +59,11 @@ export function HomePage(): JSX.Element {
     .sort((a, b) => a.order - b.order)
   const activeTask = tasks.find((t) => t.id === taskId)
 
-  // Configure a default session on first load.
+  // Configure a default session on first load. Skipped when something already
+  // configured the session (e.g. "Iniciar sessão" from a Kanban card), so we
+  // don't overwrite the task the user actually picked.
   useEffect(() => {
-    if (phase === 'idle' && activeProject) {
+    if (phase === 'idle' && activeProject && !projectId) {
       const task = projectTasks[0]
       session.configure({
         project: activeProject,
