@@ -11,7 +11,8 @@ import type {
   Session,
   Settings,
   Stats,
-  Task
+  Task,
+  UpdateStatus
 } from '../shared/types'
 
 const api: FocusHubApi = {
@@ -39,6 +40,12 @@ const api: FocusHubApi = {
   isElevated: () => ipcRenderer.invoke(IPC.FLOW_IS_ELEVATED),
   getAppInfo: () => ipcRenderer.invoke(IPC.APP_GET_INFO),
   relaunchElevated: () => ipcRenderer.send(IPC.APP_RELAUNCH_ELEVATED),
+
+  getUpdateStatus: () => ipcRenderer.invoke(IPC.UPDATE_GET_STATUS),
+  checkForUpdate: () => ipcRenderer.invoke(IPC.UPDATE_CHECK),
+  installUpdate: () => ipcRenderer.send(IPC.UPDATE_INSTALL),
+  onUpdateStatus: (cb) =>
+    subscribe(IPC.EVT_UPDATE_STATUS, (_e, status) => cb(status as UpdateStatus)),
   pickPath: (kind) => ipcRenderer.invoke(IPC.PICK_PATH, kind),
   openPath: (value: string) => ipcRenderer.invoke(IPC.OPEN_PATH, value),
 

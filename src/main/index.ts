@@ -1,11 +1,11 @@
 import { app, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
-import { autoUpdater } from 'electron-updater'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
 import { registerAppScheme, serveRenderer } from './register-protocol'
 import { FlowService } from './services/flow-service'
+import { UpdateService } from './services/update-service'
 import { Repository } from './store/repository'
 import { WindowManager } from './windows/window-manager'
 import appIcon from '../../resources/icon.png?asset'
@@ -16,6 +16,9 @@ registerAppScheme()
 const repo = new Repository()
 const flow = new FlowService()
 const windows = new WindowManager()
+const updates = new UpdateService((status) =>
+  windows.broadcast(IPC.EVT_UPDATE_STATUS, status)
+)
 let tray: Tray | null = null
 let isQuitting = false
 
@@ -114,9 +117,18 @@ if (!gotLock) {
     registerIpc({ repo, flow, windows })
     ipcMain.handle(IPC.APP_GET_INFO, async () => ({
       isPackaged: app.isPackaged,
-      elevated: await flow.isElevated()
+      elevated: await flow.isElevated(),
+      version: app.getVersion()
     }))
     ipcMain.on(IPC.APP_RELAUNCH_ELEVATED, () => relaunchElevated())
+
+    ipcMain.handle(IPC.UPDATE_GET_STATUS, () => updates.getStatus())
+    ipcMain.handle(IPC.UPDATE_CHECK, () => updates.check())
+    ipcMain.on(IPC.UPDATE_INSTALL, () =>
+      updates.install(() => {
+        isQuitting = true
+      })
+    )
 
     const win = windows.createMain()
     win.on('close', (e) => {
@@ -129,11 +141,10 @@ if (!gotLock) {
     buildTray()
     registerShortcuts()
 
-    // Auto-update from GitHub Releases (installed app only).
+    // Auto-update from GitHub Releases (installed app only). Give the window a
+    // moment so the renderer is listening when the first status arrives.
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify().catch(() => {
-        /* offline or no release yet — ignore */
-      })
+      setTimeout(() => void updates.check(), 4000)
     }
 
     app.on('activate', () => windows.showMain())

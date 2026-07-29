@@ -13,6 +13,7 @@ import { SettingsPage } from '@/features/settings/settings-page'
 import { QuickCapturePage } from '@/features/quick-capture/quick-capture-page'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
+import { useToastStore } from '@/stores/toast-store'
 import { useThemeEffect } from '@/hooks/use-theme'
 
 export default function App(): JSX.Element {
@@ -39,9 +40,20 @@ function MainApp(): JSX.Element {
   useEffect(() => {
     const offTray = window.focusHub.onTrayNewSession(() => navigate('/'))
     const offPause = window.focusHub.onGlobalTogglePause(() => togglePause())
+    // Announce a ready update once — otherwise it only surfaces in Settings.
+    const offUpdate = window.focusHub.onUpdateStatus((status) => {
+      if (status.state !== 'downloaded') return
+      useToastStore.getState().push({
+        title: `Atualização ${status.version} pronta`,
+        lines: ['Vá em Ajustes › Atualizações para reiniciar e instalar.'],
+        variant: 'success',
+        duration: 10000
+      })
+    })
     return () => {
       offTray()
       offPause()
+      offUpdate()
     }
   }, [navigate, togglePause])
 

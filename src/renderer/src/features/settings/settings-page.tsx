@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Download, Upload, Check, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { Download, Upload, Check, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
+import { ProgressBar } from '@/components/ui/progress-bar'
 import { MusicSourcesEditor } from '@/features/music/music-sources-editor'
 import { useAppStore } from '@/stores/app-store'
-import type { ThemeName } from '@shared/types'
+import type { ThemeName, UpdateStatus } from '@shared/types'
 import { cn } from '@/lib/utils'
 
 const THEMES: { id: ThemeName; label: string; bg: string; dot: string }[] = [
@@ -27,7 +28,11 @@ const FONTS = ['Inter', 'system-ui', 'Segoe UI', 'JetBrains Mono']
 export function SettingsPage(): JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const saveSettings = useAppStore((s) => s.saveSettings)
-  const [appInfo, setAppInfo] = useState<{ isPackaged: boolean; elevated: boolean } | null>(null)
+  const [appInfo, setAppInfo] = useState<{
+    isPackaged: boolean
+    elevated: boolean
+    version: string
+  } | null>(null)
 
   useEffect(() => {
     window.focusHub.getAppInfo().then(setAppInfo)
@@ -205,6 +210,11 @@ export function SettingsPage(): JSX.Element {
           <MusicSourcesEditor />
         </Section>
 
+        {/* Updates */}
+        <Section title="Atualizações">
+          <UpdatesRow version={appInfo?.version} isPackaged={appInfo?.isPackaged} />
+        </Section>
+
         {/* Backup */}
         <Section title="Backup">
           <Row label="Seus dados" desc="Exporte ou restaure tudo em um arquivo JSON.">
@@ -219,8 +229,110 @@ export function SettingsPage(): JSX.Element {
           </Row>
         </Section>
 
-        <p className="pt-2 text-center text-xs text-muted-foreground">Focus HUB · v0.1.0</p>
+        <p className="pt-2 text-center text-xs text-muted-foreground">
+          Focus HUB{appInfo?.version ? ` · v${appInfo.version}` : ''}
+        </p>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Live view of the updater. Without this the whole thing happens invisibly in
+ * the background, which reads as "the app has no updates".
+ */
+function UpdatesRow({
+  version,
+  isPackaged
+}: {
+  version?: string
+  isPackaged?: boolean
+}): JSX.Element {
+  const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
+
+  useEffect(() => {
+    void window.focusHub.getUpdateStatus().then(setStatus)
+    return window.focusHub.onUpdateStatus(setStatus)
+  }, [])
+
+  const busy = status.state === 'checking' || status.state === 'downloading'
+  const check = (): void => void window.focusHub.checkForUpdate().then(setStatus)
+
+  const describe = (): { text: string; tone?: 'good' | 'bad' } => {
+    switch (status.state) {
+      case 'checking':
+        return { text: 'Procurando atualizações…' }
+      case 'available':
+        return { text: `Versão ${status.version} encontrada. Baixando…` }
+      case 'downloading':
+        return { text: `Baixando versão ${status.version ?? ''}…` }
+      case 'downloaded':
+        return { text: `Versão ${status.version} pronta para instalar.`, tone: 'good' }
+      case 'not-available':
+        return { text: 'Você já está na versão mais recente.', tone: 'good' }
+      case 'error':
+        return { text: status.message ?? 'Falha ao verificar atualizações.', tone: 'bad' }
+      case 'unsupported':
+        return {
+          text: 'Só funciona no app instalado — você está rodando em modo desenvolvimento.',
+          tone: 'bad'
+        }
+      default:
+        return isPackaged === false
+          ? { text: 'Modo desenvolvimento — atualizações só valem no app instalado.' }
+          : { text: 'Atualizações chegam automaticamente do GitHub.' }
+    }
+  }
+
+  const info = describe()
+
+  return (
+    <div className="space-y-3 px-5 py-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">
+            Versão instalada{version ? ` · v${version}` : ''}
+          </p>
+          <p
+            className={cn(
+              'text-xs',
+              info.tone === 'good'
+                ? 'text-success'
+                : info.tone === 'bad'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground'
+            )}
+          >
+            {info.text}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          {status.state === 'downloaded' ? (
+            <Button variant="primary" onClick={() => window.focusHub.installUpdate()}>
+              <RefreshCw className="h-4 w-4" /> Reiniciar e instalar
+            </Button>
+          ) : (
+            <Button variant="secondary" disabled={busy} onClick={check}>
+              {busy ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Procurar atualizações
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {status.state === 'downloading' && (
+        <div className="flex items-center gap-3">
+          <ProgressBar value={(status.percent ?? 0) / 100} className="flex-1" />
+          <span className="w-10 text-right text-xs tabular text-muted-foreground">
+            {status.percent ?? 0}%
+          </span>
+        </div>
+      )}
     </div>
   )
 }

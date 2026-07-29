@@ -234,6 +234,26 @@ export interface AppData {
   settings: Settings
 }
 
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+  /** Dev build — electron-updater only works on an installed app. */
+  | 'unsupported'
+
+export interface UpdateStatus {
+  state: UpdateState
+  /** Version being offered, when one is. */
+  version?: string
+  /** Download progress, 0-100. */
+  percent?: number
+  message?: string
+}
+
 /** Result returned by the main process after applying a Flow config. */
 export interface FlowApplyResult {
   launched: string[]

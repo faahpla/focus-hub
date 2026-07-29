@@ -14,7 +14,8 @@ import type {
   Session,
   Settings,
   Stats,
-  Task
+  Task,
+  UpdateStatus
 } from './types'
 
 export const IPC = {
@@ -44,6 +45,11 @@ export const IPC = {
   FLOW_IS_ELEVATED: 'flow:isElevated',
   APP_GET_INFO: 'app:getInfo',
   APP_RELAUNCH_ELEVATED: 'app:relaunchElevated',
+
+  // Updates
+  UPDATE_GET_STATUS: 'update:getStatus',
+  UPDATE_CHECK: 'update:check',
+  UPDATE_INSTALL: 'update:install',
   PICK_PATH: 'os:pickPath',
   OPEN_PATH: 'os:openPath',
 
@@ -61,7 +67,8 @@ export const IPC = {
   EVT_QUICK_CAPTURE_OPEN: 'evt:quickCaptureOpen',
   EVT_TRAY_NEW_SESSION: 'evt:trayNewSession',
   EVT_GLOBAL_TOGGLE_PAUSE: 'evt:globalTogglePause',
-  EVT_DATA_CHANGED: 'evt:dataChanged'
+  EVT_DATA_CHANGED: 'evt:dataChanged',
+  EVT_UPDATE_STATUS: 'evt:updateStatus'
 } as const
 
 export interface FocusHubApi {
@@ -87,8 +94,14 @@ export interface FocusHubApi {
   applyFlow(config: FlowConfig): Promise<FlowApplyResult>
   releaseFlow(): Promise<void>
   isElevated(): Promise<boolean>
-  getAppInfo(): Promise<{ isPackaged: boolean; elevated: boolean }>
+  getAppInfo(): Promise<{ isPackaged: boolean; elevated: boolean; version: string }>
   relaunchElevated(): void
+
+  getUpdateStatus(): Promise<UpdateStatus>
+  checkForUpdate(): Promise<UpdateStatus>
+  /** Quit and install the downloaded update. */
+  installUpdate(): void
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
   pickPath(kind: 'file' | 'folder'): Promise<string | null>
   /** Open a local path in Explorer/default app, or a URL in the browser. */
   openPath(value: string): Promise<boolean>
