@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, Clock, Timer, Trash2, X } from 'lucide-react'
 import {
   Dialog,
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { useAppStore } from '@/stores/app-store'
+import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Priority, Task, TaskStatus } from '@shared/types'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -36,28 +37,29 @@ export function TaskDetailDialog({
   onClose: () => void
 }): JSX.Element | null {
   const task = useAppStore((s) => s.tasks.find((t) => t.id === taskId))
+  // Resolve first so the autosave hooks below always run.
+  if (!task) return null
+  return <TaskEditor task={task} onClose={onClose} />
+}
+
+function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX.Element {
   const saveTask = useAppStore((s) => s.saveTask)
   const deleteTask = useAppStore((s) => s.deleteTask)
-
-  // Local buffers for free-text fields; commit on blur to avoid IPC per keystroke.
-  const [title, setTitle] = useState(task?.title ?? '')
-  const [description, setDescription] = useState(task?.description ?? '')
   const [tagDraft, setTagDraft] = useState('')
 
-  useEffect(() => {
-    setTitle(task?.title ?? '')
-    setDescription(task?.description ?? '')
-  }, [task?.id]) // reseed only when a different task opens
-
-  if (!task) return null
-
-  const patch = (p: Partial<Task>): void => void saveTask({ ...task, ...p })
-
-  const commitTitle = (): void => {
-    const t = title.trim()
-    if (t && t !== task.title) patch({ title: t })
-    else if (!t) setTitle(task.title)
+  const patch = (p: Partial<Task>): void => {
+    const base = useAppStore.getState().tasks.find((t) => t.id === task.id) ?? task
+    void saveTask({ ...base, ...p })
   }
+
+  // Autosaved so closing the dialog mid-sentence never drops the text.
+  const [title, setTitle] = useAutosavedText(task.title, (next) => {
+    const t = next.trim()
+    if (t && t !== task.title) patch({ title: t })
+  })
+  const [description, setDescription] = useAutosavedText(task.description ?? '', (next) =>
+    patch({ description: next })
+  )
 
   const addTag = (): void => {
     const tag = tagDraft.trim()
@@ -90,7 +92,7 @@ export function TaskDetailDialog({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={commitTitle}
+              onBlur={() => !title.trim() && setTitle(task.title)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
               className={cn(
                 'no-drag w-full bg-transparent text-lg font-semibold tracking-tight focus:outline-none',

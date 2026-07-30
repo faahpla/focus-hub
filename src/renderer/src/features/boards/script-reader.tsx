@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Copy, Minus, Plus, X } from 'lucide-react'
+import { useAutosavedText } from '@/hooks/use-autosave'
 import { cn } from '@/lib/utils'
 
 const FONT_KEY = 'focus-hub:reader-font'
@@ -23,17 +24,18 @@ export function ScriptReader({
   onCommit: (next: string) => void
   onClose: () => void
 }): JSX.Element {
-  const [text, setText] = useState(value)
+  // Autosaved while you write — a shutdown mid-script must not cost the script.
+  const [text, setText, flush] = useAutosavedText(value, onCommit)
   const [fontSize, setFontSize] = useState(() => {
     const saved = Number(localStorage.getItem(FONT_KEY))
     return saved >= MIN_FONT && saved <= MAX_FONT ? saved : 22
   })
   const [copied, setCopied] = useState(false)
 
-  // Always close through here so the text is saved exactly once, on the way out.
+  // Always close through here so any un-debounced text lands before we leave.
   const finish = useRef<() => void>(() => undefined)
   finish.current = () => {
-    onCommit(text)
+    flush()
     onClose()
   }
 
@@ -125,7 +127,7 @@ export function ScriptReader({
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onBlur={() => onCommit(text)}
+          onBlur={flush}
           placeholder="Escreva ou cole seu roteiro aqui…"
           style={{ fontSize, lineHeight: 1.75 }}
           className={cn(

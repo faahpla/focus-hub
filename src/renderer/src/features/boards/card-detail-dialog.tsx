@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -41,6 +41,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
 import { useAppStore } from '@/stores/app-store'
+import { useAutosavedText } from '@/hooks/use-autosave'
 import { useSessionStore } from '@/stores/session-store'
 import { useToastStore } from '@/stores/toast-store'
 import type { Board, BoardCard, CardAsset, Task } from '@shared/types'
@@ -84,6 +85,22 @@ export function CardDetailDialog({
   onClose: () => void
 }): JSX.Element | null {
   const card = useAppStore((s) => s.cards.find((c) => c.id === cardId))
+  // Resolve the card before the editor mounts, so the autosave hooks below can
+  // run unconditionally and seed themselves from a card that definitely exists.
+  if (!card) return null
+  return <CardEditor card={card} board={board} onClose={onClose} />
+}
+
+function CardEditor({
+  card,
+  board,
+  onClose
+}: {
+  card: BoardCard
+  board: Board
+  onClose: () => void
+}): JSX.Element {
+  const cardId = card.id
   const allTasks = useAppStore((s) => s.tasks)
   const allProjects = useAppStore((s) => s.projects)
   const saveCard = useAppStore((s) => s.saveCard)
@@ -94,23 +111,10 @@ export function CardDetailDialog({
   const pushToast = useToastStore((s) => s.push)
   const navigate = useNavigate()
 
-  const [title, setTitle] = useState(card?.title ?? '')
-  const [notes, setNotes] = useState(card?.notes ?? '')
-  const [description, setDescription] = useState(card?.description ?? '')
-  const [hashtags, setHashtags] = useState(card?.hashtags ?? '')
   const [tagDraft, setTagDraft] = useState('')
   const [taskOpen, setTaskOpen] = useState(false)
   const [readerOpen, setReaderOpen] = useState(false)
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
-
-  useEffect(() => {
-    setTitle(card?.title ?? '')
-    setNotes(card?.notes ?? '')
-    setDescription(card?.description ?? '')
-    setHashtags(card?.hashtags ?? '')
-  }, [card?.id]) // reseed only when a different card opens
-
-  if (!card) return null
 
   const assets = card.assets ?? []
   const projects = allProjects.filter((p) => !p.archived)
@@ -137,11 +141,20 @@ export function CardDetailDialog({
 
   const patch = (p: Partial<BoardCard>): void => patchWith(() => p)
 
-  const commitTitle = (): void => {
-    const t = title.trim()
+  // Every free-text field autosaves; nothing waits for a blur that may never come.
+  const [title, setTitle] = useAutosavedText(card.title, (next) => {
+    const t = next.trim()
     if (t && t !== card.title) patch({ title: t })
-    else if (!t) setTitle(card.title)
-  }
+  })
+  const [notes, setNotes] = useAutosavedText(card.notes ?? '', (next) =>
+    patch({ notes: next })
+  )
+  const [description, setDescription] = useAutosavedText(card.description ?? '', (next) =>
+    patch({ description: next })
+  )
+  const [hashtags, setHashtags] = useAutosavedText(card.hashtags ?? '', (next) =>
+    patch({ hashtags: next })
+  )
 
   const addTag = (): void => {
     const tag = tagDraft.trim()
@@ -232,7 +245,7 @@ export function CardDetailDialog({
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={commitTitle}
+              onBlur={() => !title.trim() && setTitle(card.title)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -560,9 +573,12 @@ export function CardDetailDialog({
             <ScriptReader
               title={card.title}
               value={notes}
+              // Sync the card's box AND persist immediately. Routing this
+              // through the card's debounce instead would stack two delays
+              // before the script reaches disk.
               onCommit={(next) => {
                 setNotes(next)
-                if (next !== (card.notes ?? '')) patch({ notes: next })
+                patch({ notes: next })
               }}
               onClose={() => setReaderOpen(false)}
             />

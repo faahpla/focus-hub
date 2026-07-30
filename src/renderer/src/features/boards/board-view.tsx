@@ -283,6 +283,8 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
 
       {openCardId && (
         <CardDetailDialog
+          // Remount per card so the autosaved fields reseed from the new card.
+          key={openCardId}
           cardId={openCardId}
           board={board}
           onClose={() => setOpenCardId(null)}
