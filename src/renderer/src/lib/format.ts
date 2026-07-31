@@ -35,6 +35,13 @@ export function formatDate(iso: string): string {
   return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
+/** Date plus time — for things where several happen on the same day. */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number): string => n.toString().padStart(2, '0')
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
 }

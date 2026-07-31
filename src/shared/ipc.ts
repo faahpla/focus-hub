@@ -5,6 +5,7 @@
 
 import type {
   AppData,
+  BackupInfo,
   Board,
   BoardCard,
   FlowApplyResult,
@@ -38,6 +39,9 @@ export const IPC = {
   SETTINGS_SAVE: 'settings:save',
   BACKUP_EXPORT: 'backup:export',
   BACKUP_IMPORT: 'backup:import',
+  BACKUPS_LIST: 'backups:list',
+  BACKUPS_RESTORE: 'backups:restore',
+  BACKUPS_OPEN_DIR: 'backups:openDir',
 
   // Flow / OS integration
   FLOW_APPLY: 'flow:apply',
@@ -90,6 +94,9 @@ export interface FocusHubApi {
   saveSettings(settings: Settings): Promise<AppData>
   exportBackup(): Promise<{ ok: boolean; path?: string }>
   importBackup(): Promise<{ ok: boolean; data?: AppData }>
+  listBackups(): Promise<BackupInfo[]>
+  restoreBackup(file: string): Promise<{ ok: boolean; data?: AppData }>
+  openBackupsFolder(): void
 
   applyFlow(config: FlowConfig): Promise<FlowApplyResult>
   releaseFlow(): Promise<void>

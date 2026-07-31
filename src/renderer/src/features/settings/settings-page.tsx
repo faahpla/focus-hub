@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Download, Upload, Check, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-react'
+import {
+  Download,
+  Upload,
+  Check,
+  FolderOpen,
+  History,
+  RefreshCw,
+  ShieldCheck,
+  ShieldAlert
+} from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,7 +17,9 @@ import { Slider } from '@/components/ui/slider'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { MusicSourcesEditor } from '@/features/music/music-sources-editor'
 import { useAppStore } from '@/stores/app-store'
-import type { ThemeName, UpdateStatus } from '@shared/types'
+import { useToastStore } from '@/stores/toast-store'
+import type { BackupInfo, ThemeName, UpdateStatus } from '@shared/types'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const THEMES: { id: ThemeName; label: string; bg: string; dot: string }[] = [
@@ -227,12 +238,114 @@ export function SettingsPage(): JSX.Element {
               </Button>
             </div>
           </Row>
+          <AutoBackupsRow />
         </Section>
 
         <p className="pt-2 text-center text-xs text-muted-foreground">
           Focus HUB{appInfo?.version ? ` · v${appInfo.version}` : ''}
         </p>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Rolling snapshots taken automatically — the way back when something is
+ * deleted by accident. Restoring is itself snapshotted, so it's reversible.
+ */
+function AutoBackupsRow(): JSX.Element {
+  const hydrate = useAppStore((s) => s.hydrate)
+  const pushToast = useToastStore((s) => s.push)
+  const [items, setItems] = useState<BackupInfo[]>([])
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  const refresh = (): void => void window.focusHub.listBackups().then(setItems)
+  useEffect(refresh, [])
+
+  const restore = async (file: string): Promise<void> => {
+    const res = await window.focusHub.restoreBackup(file)
+    setConfirming(null)
+    if (res.ok && res.data) {
+      hydrate(res.data)
+      refresh()
+      pushToast({
+        title: 'Backup restaurado',
+        lines: ['O estado anterior foi salvo, dá para voltar atrás.'],
+        variant: 'success'
+      })
+    } else {
+      pushToast({ title: 'Não foi possível restaurar', variant: 'warning' })
+    }
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Backups automáticos</p>
+          <p className="text-xs text-muted-foreground">
+            {items.length > 0
+              ? `${items.length} cópias guardadas · a mais recente ${formatDateTime(items[0].savedAt)}`
+              : 'Salvos ao abrir, a cada 10 min e antes de qualquer exclusão.'}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" onClick={() => window.focusHub.openBackupsFolder()}>
+            <FolderOpen className="h-4 w-4" /> Abrir pasta
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              refresh()
+              setOpen((o) => !o)
+            }}
+          >
+            <History className="h-4 w-4" /> {open ? 'Ocultar' : 'Ver cópias'}
+          </Button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto scrollbar-thin">
+          {items.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhuma cópia ainda.</p>
+          )}
+          {items.map((b) => (
+            <div
+              key={b.file}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-surface/40 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium">{formatDateTime(b.savedAt)}</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {b.reason} · {b.boards} quadros · {b.cards} cards · {b.tasks} tarefas ·{' '}
+                  {b.ideas} ideias
+                </p>
+              </div>
+              {confirming === b.file ? (
+                <div className="flex shrink-0 gap-1.5">
+                  <Button size="sm" variant="destructive" onClick={() => void restore(b.file)}>
+                    Confirmar
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={() => setConfirming(b.file)}
+                >
+                  Restaurar
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

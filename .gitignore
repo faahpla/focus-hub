@@ -2,6 +2,8 @@ node_modules
 dist
 out
 release
+# Copias de seguranca dos dados pessoais do app — nunca versionar.
+_recuperacao
 *.log
 .DS_Store
 .env

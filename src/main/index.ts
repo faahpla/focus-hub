@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
 import { registerAppScheme, serveRenderer } from './register-protocol'
+import { BackupService } from './services/backup-service'
 import { FlowService } from './services/flow-service'
 import { UpdateService } from './services/update-service'
 import { Repository } from './store/repository'
@@ -114,7 +115,14 @@ if (!gotLock) {
     // Vite dev server (covers the packaged app and the built output directly).
     if (!process.env['ELECTRON_RENDERER_URL']) serveRenderer(join(__dirname, '../renderer'))
 
-    registerIpc({ repo, flow, windows })
+    // Rolling snapshots: one at startup, then every 10 minutes while the app
+    // is open (no-ops when nothing changed), plus one on the way out.
+    const backups = new BackupService(app.getPath('userData'))
+    backups.snapshot(repo.getAll(), 'ao abrir o app')
+    setInterval(() => backups.snapshot(repo.getAll(), 'automático'), 10 * 60 * 1000)
+    app.on('before-quit', () => backups.snapshot(repo.getAll(), 'ao fechar o app'))
+
+    registerIpc({ repo, flow, windows, backups })
     ipcMain.handle(IPC.APP_GET_INFO, async () => ({
       isPackaged: app.isPackaged,
       elevated: await flow.isElevated(),

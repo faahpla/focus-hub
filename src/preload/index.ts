@@ -34,6 +34,9 @@ const api: FocusHubApi = {
   saveSettings: (s: Settings) => ipcRenderer.invoke(IPC.SETTINGS_SAVE, s),
   exportBackup: () => ipcRenderer.invoke(IPC.BACKUP_EXPORT),
   importBackup: () => ipcRenderer.invoke(IPC.BACKUP_IMPORT),
+  listBackups: () => ipcRenderer.invoke(IPC.BACKUPS_LIST),
+  restoreBackup: (file: string) => ipcRenderer.invoke(IPC.BACKUPS_RESTORE, file),
+  openBackupsFolder: () => ipcRenderer.send(IPC.BACKUPS_OPEN_DIR),
 
   applyFlow: (config: FlowConfig) => ipcRenderer.invoke(IPC.FLOW_APPLY, config),
   releaseFlow: () => ipcRenderer.invoke(IPC.FLOW_RELEASE),

@@ -1,5 +1,15 @@
-import type { Board, BoardColumn } from '@shared/types'
+import type { Board, BoardCard, BoardColumn } from '@shared/types'
 import { uid } from '@/lib/utils'
+
+/**
+ * A card counts as finished when it was ticked by hand, or simply because it
+ * sits in a column the user marked as the finish line. Lives here (a leaf
+ * module) so both the board and the card dialog can use it without a cycle.
+ */
+export function isCardDone(card: BoardCard, columns: BoardColumn[]): boolean {
+  if (card.done !== undefined) return card.done
+  return columns.find((c) => c.id === card.columnId)?.done === true
+}
 
 /** Palette used for new columns, cycled in order. */
 export const COLUMN_COLORS = [
@@ -47,12 +57,13 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   }
 ]
 
-export function makeColumn(name: string, order: number): BoardColumn {
+export function makeColumn(name: string, order: number, done = false): BoardColumn {
   return {
     id: uid(),
     name,
     color: COLUMN_COLORS[order % COLUMN_COLORS.length],
-    order
+    order,
+    ...(done ? { done: true } : {})
   }
 }
 
@@ -66,7 +77,10 @@ export function makeBoard(
     name: template.name,
     icon: template.icon,
     color: template.color,
-    columns: template.columns.map(makeColumn),
+    // The last lane of a multi-column template is where work lands finished.
+    columns: template.columns.map((name, i, all) =>
+      makeColumn(name, i, all.length > 1 && i === all.length - 1)
+    ),
     createdAt: stamp,
     updatedAt: stamp,
     archived: false,

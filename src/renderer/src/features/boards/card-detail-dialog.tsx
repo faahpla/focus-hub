@@ -45,6 +45,7 @@ import { useAutosavedText } from '@/hooks/use-autosave'
 import { useSessionStore } from '@/stores/session-store'
 import { useToastStore } from '@/stores/toast-store'
 import type { Board, BoardCard, CardAsset, Task } from '@shared/types'
+import { isCardDone } from './board-templates'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
 
@@ -123,6 +124,7 @@ function CardEditor({
     ? projects.find((p) => p.id === board.projectId)
     : undefined
   const column = board.columns.find((c) => c.id === card.columnId)
+  const finished = isCardDone(card, board.columns)
 
   /**
    * Serialize writes and rebase each one on the freshest card from the store.
@@ -242,20 +244,37 @@ function CardEditor({
                 Edite o roteiro, a descrição, as hashtags e os assets do card.
               </DialogDescription>
             </DialogHeader>
-            <textarea
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => !title.trim() && setTitle(card.title)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  e.currentTarget.blur()
-                }
-              }}
-              rows={1}
-              placeholder="Título do card"
-              className="no-drag w-full resize-none bg-transparent text-lg font-semibold tracking-tight focus:outline-none"
-            />
+            <div className="flex items-start gap-3">
+              <button
+                onClick={() => patch({ done: !finished })}
+                className={cn(
+                  'mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                  finished
+                    ? 'border-success bg-success text-white'
+                    : 'border-border hover:border-success/70'
+                )}
+                title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
+              >
+                {finished && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+              </button>
+              <textarea
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => !title.trim() && setTitle(card.title)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    e.currentTarget.blur()
+                  }
+                }}
+                rows={1}
+                placeholder="Título do card"
+                className={cn(
+                  'no-drag w-full resize-none bg-transparent text-lg font-semibold tracking-tight focus:outline-none',
+                  finished && 'text-muted-foreground line-through'
+                )}
+              />
+            </div>
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span>em</span>
               <DropdownMenu>
@@ -432,7 +451,7 @@ function CardEditor({
                     description !== (card.description ?? '') && patch({ description })
                   }
                   placeholder="A descrição que vai no post…"
-                  className="no-drag min-h-[90px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
               </div>
 

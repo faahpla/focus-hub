@@ -26,6 +26,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   CalendarDays,
   Check,
+  CircleCheckBig,
   ListChecks,
   MoreHorizontal,
   Paperclip,
@@ -41,7 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAppStore } from '@/stores/app-store'
 import type { Board, BoardCard, BoardColumn, Task } from '@shared/types'
-import { COLUMN_COLORS, makeColumn } from './board-templates'
+import { COLUMN_COLORS, isCardDone, makeColumn } from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
 import { cn, uid } from '@/lib/utils'
 
@@ -119,7 +120,10 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
       ids.forEach((id, order) => {
         const card = cardsById.get(id)
         if (card && (card.columnId !== columnId || card.order !== order)) {
-          changed.push({ ...card, columnId, order })
+          // Moving to another lane hands the "done" state back to the column,
+          // so dragging out of Publicado un-finishes the card as expected.
+          const moved = card.columnId !== columnId
+          changed.push({ ...card, columnId, order, ...(moved ? { done: undefined } : {}) })
         }
       })
     }
@@ -205,6 +209,12 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
     })
   }
 
+  const toggleCardDone = (cardId: string): void => {
+    const card = cardsById.get(cardId)
+    if (!card) return
+    void saveCard({ ...card, done: !isCardDone(card, columns) })
+  }
+
   const addColumn = (): void => {
     void saveBoard({
       ...board,
@@ -255,8 +265,11 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               onAddCard={(title) => addCard(column.id, title)}
               onRename={(name) => patchColumn(column.id, { name })}
               onRecolor={(color) => patchColumn(column.id, { color })}
+              onToggleDone={() => patchColumn(column.id, { done: !column.done })}
               onDelete={() => removeColumn(column.id)}
               onOpenCard={setOpenCardId}
+              onToggleCardDone={toggleCardDone}
+              columns={columns}
             />
           ))}
 
@@ -274,6 +287,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               <CardBody
                 card={activeCard}
                 task={activeCard.taskId ? tasksById.get(activeCard.taskId) : undefined}
+                done={isCardDone(activeCard, columns)}
                 dragging
               />
             </div>
@@ -303,8 +317,11 @@ function Column({
   onAddCard,
   onRename,
   onRecolor,
+  onToggleDone,
   onDelete,
-  onOpenCard
+  onOpenCard,
+  onToggleCardDone,
+  columns
 }: {
   column: BoardColumn
   cardIds: string[]
@@ -314,8 +331,11 @@ function Column({
   onAddCard: (title: string) => void
   onRename: (name: string) => void
   onRecolor: (color: string) => void
+  onToggleDone: () => void
   onDelete: () => void
   onOpenCard: (id: string) => void
+  onToggleCardDone: (id: string) => void
+  columns: BoardColumn[]
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const [renaming, setRenaming] = useState(false)
@@ -341,10 +361,14 @@ function Column({
     <div className="flex h-full w-[280px] shrink-0 flex-col">
       {/* Header */}
       <div className="mb-2 flex items-center gap-2 px-1">
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: `hsl(${column.color})` }}
-        />
+        {column.done ? (
+          <CircleCheckBig className="h-3.5 w-3.5 shrink-0 text-success" />
+        ) : (
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: `hsl(${column.color})` }}
+          />
+        )}
         {renaming ? (
           <input
             autoFocus
@@ -366,7 +390,10 @@ function Column({
               setDraft(column.name)
               setRenaming(true)
             }}
-            className="no-drag min-w-0 flex-1 truncate text-left text-sm font-semibold"
+            className={cn(
+              'no-drag min-w-0 flex-1 truncate text-left text-sm font-semibold',
+              column.done && 'text-success'
+            )}
             title="Duplo clique para renomear"
           >
             {column.name}
@@ -389,6 +416,12 @@ function Column({
               }}
             >
               Renomear
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onToggleDone} active={column.done === true}>
+              <span className="flex items-center gap-2">
+                <CircleCheckBig className="h-4 w-4" />
+                Coluna de conclusão
+              </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="flex gap-1.5 px-2.5 py-2">
@@ -425,6 +458,7 @@ function Column({
         ref={setNodeRef}
         className={cn(
           'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border border-transparent p-1.5 transition-colors scrollbar-thin',
+          column.done && 'border-success/20 bg-success/[0.04]',
           isOver && 'border-primary/40 bg-primary/5'
         )}
       >
@@ -438,7 +472,9 @@ function Column({
                   key={id}
                   card={card}
                   task={card.taskId ? tasksById.get(card.taskId) : undefined}
+                  done={isCardDone(card, columns)}
                   onOpen={() => onOpenCard(id)}
+                  onToggleDone={() => onToggleCardDone(id)}
                 />
               )
             })}
@@ -506,11 +542,15 @@ function Column({
 function SortableCard({
   card,
   task,
-  onOpen
+  done,
+  onOpen,
+  onToggleDone
 }: {
   card: BoardCard
   task?: Task
+  done: boolean
   onOpen: () => void
+  onToggleDone: () => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id
@@ -524,7 +564,7 @@ function SortableCard({
       onClick={onOpen}
       className={cn('no-drag touch-none', isDragging && 'opacity-30')}
     >
-      <CardBody card={card} task={task} />
+      <CardBody card={card} task={task} done={done} onToggleDone={onToggleDone} />
     </div>
   )
 }
@@ -533,15 +573,20 @@ function SortableCard({
 function CardBody({
   card,
   task,
-  dragging
+  done,
+  dragging,
+  onToggleDone
 }: {
   card: BoardCard
   task?: Task
+  done?: boolean
   dragging?: boolean
+  onToggleDone?: () => void
 }): JSX.Element {
-  const done = task?.checklist.filter((c) => c.done).length ?? 0
+  const checked = task?.checklist.filter((c) => c.done).length ?? 0
   const total = task?.checklist.length ?? 0
   const assetCount = card.assets?.length ?? 0
+  const finished = done ?? task?.status === 'done'
 
   return (
     <motion.div
@@ -550,21 +595,50 @@ function CardBody({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       className={cn(
-        'cursor-grab select-none rounded-xl border border-border/70 bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface-hover active:cursor-grabbing',
+        'group/card relative cursor-grab select-none rounded-xl border border-border/70 bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface-hover active:cursor-grabbing',
+        finished && 'border-success/25 bg-success/[0.06] opacity-70 hover:opacity-100',
         dragging && 'border-primary/50 bg-surface-elevated shadow-elevated'
       )}
     >
-      <p
-        className={cn(
-          'text-sm leading-snug',
-          task?.status === 'done' && 'text-muted-foreground line-through'
+      <div className="flex items-start gap-2">
+        {onToggleDone && (
+          <button
+            onClick={(e) => {
+              // The whole card is a drag handle and opens the dialog on click.
+              e.stopPropagation()
+              onToggleDone()
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={cn(
+              'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors',
+              finished
+                ? 'border-success bg-success text-white'
+                : 'border-border opacity-0 hover:border-success/70 group-hover/card:opacity-100'
+            )}
+            title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
+          >
+            {finished && <Check className="h-3 w-3" strokeWidth={3} />}
+          </button>
         )}
-      >
-        {card.title}
-      </p>
+        <p
+          className={cn(
+            'min-w-0 flex-1 text-sm leading-snug',
+            finished && 'text-muted-foreground line-through'
+          )}
+        >
+          {card.title}
+        </p>
+      </div>
 
       {card.notes && (
-        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{card.notes}</p>
+        <p
+          className={cn(
+            'mt-1.5 line-clamp-2 text-xs text-muted-foreground',
+            finished && 'line-through decoration-muted-foreground/40'
+          )}
+        >
+          {card.notes}
+        </p>
       )}
 
       {(task || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
@@ -578,7 +652,7 @@ function CardBody({
           {task && (
             <span className="flex items-center gap-1 rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
               <ListChecks className="h-3 w-3" />
-              {total > 0 ? `${done}/${total}` : 'Tarefa'}
+              {total > 0 ? `${checked}/${total}` : 'Tarefa'}
             </span>
           )}
           {card.dueDate && (

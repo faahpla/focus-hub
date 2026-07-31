@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Clock, Timer, Trash2, X } from 'lucide-react'
+import { Check, Clock, Maximize2, Timer, Trash2, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChecklistPanel } from '@/features/session/checklist-panel'
+import { ScriptReader } from '@/features/boards/script-reader'
 import { useAppStore } from '@/stores/app-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Priority, Task, TaskStatus } from '@shared/types'
@@ -46,6 +47,7 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
   const saveTask = useAppStore((s) => s.saveTask)
   const deleteTask = useAppStore((s) => s.deleteTask)
   const [tagDraft, setTagDraft] = useState('')
+  const [readerOpen, setReaderOpen] = useState(false)
 
   const patch = (p: Partial<Task>): void => {
     const base = useAppStore.getState().tasks.find((t) => t.id === task.id) ?? task
@@ -167,18 +169,26 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
             </div>
           </div>
 
-          {/* Description — resizable, since it often holds a whole script. */}
+          {/* Description — often carries a whole script over from a card, so it
+              gets real room plus the same full-screen reader the cards have. */}
           <div>
-            <p className="mb-2 text-sm font-medium">Descrição</p>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Descrição</p>
+              <button
+                onClick={() => setReaderOpen(true)}
+                className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+              >
+                <Maximize2 className="h-3 w-3" /> Modo leitura
+              </button>
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onBlur={() => description !== (task.description ?? '') && patch({ description })}
               placeholder="Adicione detalhes, links, contexto…"
-              className="no-drag min-h-[100px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3.5 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/60 scrollbar-thin"
+              className="no-drag min-h-[280px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3.5 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/60 scrollbar-thin"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Arraste o canto inferior direito para aumentar a caixa.
+              Salva sozinho · arraste o canto inferior direito para aumentar
             </p>
           </div>
 
@@ -235,6 +245,19 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
             Concluído
           </Button>
         </div>
+
+        {/* Inside DialogContent so Radix keeps focus here while reading. */}
+        {readerOpen && (
+          <ScriptReader
+            title={task.title}
+            value={description}
+            onCommit={(next) => {
+              setDescription(next)
+              patch({ description: next })
+            }}
+            onClose={() => setReaderOpen(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

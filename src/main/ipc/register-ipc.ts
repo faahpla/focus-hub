@@ -14,6 +14,7 @@ import type {
   Task
 } from '../../shared/types'
 import type { Repository } from '../store/repository'
+import type { BackupService } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
 import type { WindowManager } from '../windows/window-manager'
 
@@ -21,28 +22,45 @@ interface Deps {
   repo: Repository
   flow: FlowService
   windows: WindowManager
+  backups: BackupService
 }
 
-export function registerIpc({ repo, flow, windows }: Deps): void {
+export function registerIpc({ repo, flow, windows, backups }: Deps): void {
   const changed = (data: AppData): AppData => {
     windows.broadcast(IPC.EVT_DATA_CHANGED, data)
     return data
   }
 
+  /** Snapshot the document *before* running something that removes data. */
+  const guard = <T>(reason: string, run: () => T): T => {
+    backups.snapshot(repo.getAll(), reason)
+    return run()
+  }
+
   // ---- Data ----
   ipcMain.handle(IPC.DATA_GET_ALL, () => repo.getAll())
   ipcMain.handle(IPC.PROJECTS_SAVE, (_e, p: Project) => changed(repo.saveProject(p)))
-  ipcMain.handle(IPC.PROJECTS_DELETE, (_e, id: string) => changed(repo.deleteProject(id)))
+  ipcMain.handle(IPC.PROJECTS_DELETE, (_e, id: string) =>
+    guard('antes de excluir projeto', () => changed(repo.deleteProject(id)))
+  )
   ipcMain.handle(IPC.TASKS_SAVE, (_e, t: Task) => changed(repo.saveTask(t)))
   ipcMain.handle(IPC.TASKS_SAVE_MANY, (_e, tasks: Task[]) => changed(repo.saveTasks(tasks)))
-  ipcMain.handle(IPC.TASKS_DELETE, (_e, id: string) => changed(repo.deleteTask(id)))
+  ipcMain.handle(IPC.TASKS_DELETE, (_e, id: string) =>
+    guard('antes de excluir tarefa', () => changed(repo.deleteTask(id)))
+  )
   ipcMain.handle(IPC.IDEAS_SAVE, (_e, i: Idea) => changed(repo.saveIdea(i)))
-  ipcMain.handle(IPC.IDEAS_DELETE, (_e, id: string) => changed(repo.deleteIdea(id)))
+  ipcMain.handle(IPC.IDEAS_DELETE, (_e, id: string) =>
+    guard('antes de excluir ideia', () => changed(repo.deleteIdea(id)))
+  )
   ipcMain.handle(IPC.BOARDS_SAVE, (_e, b: Board) => changed(repo.saveBoard(b)))
-  ipcMain.handle(IPC.BOARDS_DELETE, (_e, id: string) => changed(repo.deleteBoard(id)))
+  ipcMain.handle(IPC.BOARDS_DELETE, (_e, id: string) =>
+    guard('antes de excluir quadro', () => changed(repo.deleteBoard(id)))
+  )
   ipcMain.handle(IPC.CARDS_SAVE, (_e, c: BoardCard) => changed(repo.saveCard(c)))
   ipcMain.handle(IPC.CARDS_SAVE_MANY, (_e, cards: BoardCard[]) => changed(repo.saveCards(cards)))
-  ipcMain.handle(IPC.CARDS_DELETE, (_e, id: string) => changed(repo.deleteCard(id)))
+  ipcMain.handle(IPC.CARDS_DELETE, (_e, id: string) =>
+    guard('antes de excluir card', () => changed(repo.deleteCard(id)))
+  )
   ipcMain.handle(IPC.SESSIONS_RECORD, (_e, s: Session) => changed(repo.recordSession(s)))
   ipcMain.handle(IPC.STATS_SAVE, (_e, s: Stats) => changed(repo.saveStats(s)))
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, s: Settings) => changed(repo.saveSettings(s)))
@@ -69,6 +87,7 @@ export function registerIpc({ repo, flow, windows }: Deps): void {
     try {
       const raw = await fs.readFile(res.filePaths[0], 'utf8')
       const data = JSON.parse(raw) as AppData
+      backups.snapshot(repo.getAll(), 'antes de importar backup')
       const saved = repo.replaceAll(data)
       changed(saved)
       return { ok: true, data: saved }
@@ -76,6 +95,19 @@ export function registerIpc({ repo, flow, windows }: Deps): void {
       return { ok: false }
     }
   })
+
+  // ---- Automatic snapshots ----
+  ipcMain.handle(IPC.BACKUPS_LIST, () => backups.list())
+  ipcMain.handle(IPC.BACKUPS_RESTORE, (_e, file: string) => {
+    const data = backups.restore(file)
+    if (!data) return { ok: false }
+    // Snapshot the current state too, so restoring is itself undoable.
+    backups.snapshot(repo.getAll(), 'antes de restaurar backup', true)
+    const saved = repo.replaceAll(data)
+    changed(saved)
+    return { ok: true, data: saved }
+  })
+  ipcMain.on(IPC.BACKUPS_OPEN_DIR, () => void shell.openPath(backups.folder))
 
   // ---- Flow ----
   ipcMain.handle(IPC.FLOW_APPLY, (_e, config: FlowConfig) => flow.apply(config))

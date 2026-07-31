@@ -105,6 +105,8 @@ export interface BoardColumn {
   name: string
   color: string // hsl string
   order: number
+  /** Landing here means the work is finished — cards get a "done" look. */
+  done?: boolean
 }
 
 /**
@@ -151,6 +153,8 @@ export interface BoardCard {
   hashtags?: string
   assets: CardAsset[]
   tags: string[]
+  /** Marked finished — either by hand or by landing in a "done" column. */
+  done?: boolean
   /** When set, this card mirrors a Task (checklist, priority, sessions). */
   taskId?: ID
   dueDate?: string // ISO
@@ -232,6 +236,17 @@ export interface AppData {
   sessions: Session[]
   stats: Stats
   settings: Settings
+}
+
+/** One automatic snapshot of the whole app document. */
+export interface BackupInfo {
+  file: string
+  savedAt: string // ISO
+  reason: string
+  boards: number
+  cards: number
+  tasks: number
+  ideas: number
 }
 
 export type UpdateState =
