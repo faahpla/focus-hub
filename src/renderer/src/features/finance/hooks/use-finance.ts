@@ -5,7 +5,7 @@ import { materializeRecurring } from '../services/recurrence-service'
 import { buildAlerts, type FinanceAlert } from '../services/alerts-service'
 import { buildInsights, type Insight } from '../services/insights-service'
 import { totalBalance, monthTotals, type PeriodTotals } from '../services/finance-engine'
-import { currentMonth, type MonthKey } from '../utils/dates'
+import { currentMonth, type MonthKey } from '@/lib/dates'
 
 /**
  * The finance branch of the document.

@@ -16,7 +16,7 @@ import { GoalDialog } from '../components/goal-dialog'
 import { useFinance } from '../hooks/use-finance'
 import { monthTotals } from '../services/finance-engine'
 import { formatPercent, parseMoney, percent } from '../utils/money'
-import { currentMonth, dayLabel, diffDays, today } from '../utils/dates'
+import { currentMonth, dayLabel, diffDays, today } from '@/lib/dates'
 
 export function GoalsPage(): JSX.Element {
   const finance = useFinance()

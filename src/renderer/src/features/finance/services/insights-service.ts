@@ -5,7 +5,7 @@
  */
 
 import type { FinanceData } from '@shared/finance'
-import { type MonthKey, addMonthsToKey, currentMonth, monthLabel } from '../utils/dates'
+import { type MonthKey, addMonthsToKey, currentMonth, monthLabel } from '@/lib/dates'
 import { formatMoney, formatPercent } from '../utils/money'
 import { categoryBreakdown, monthTotals, transactionsInMonth } from './finance-engine'
 import { averageMonthlyExpense, buildMonthReport } from './reports-service'

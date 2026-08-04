@@ -10,7 +10,7 @@ import { Money } from './money'
 import { monthTotals, totalBalance } from '../services/finance-engine'
 import { buildAlerts } from '../services/alerts-service'
 import { percent } from '../utils/money'
-import { currentMonth } from '../utils/dates'
+import { currentMonth } from '@/lib/dates'
 
 /**
  * The finance strip on the Focus HUB home screen: balance, what left this

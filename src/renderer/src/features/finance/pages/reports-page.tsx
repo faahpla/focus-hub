@@ -16,7 +16,7 @@ import {
   compareMonths
 } from '../services/reports-service'
 import { formatMoneyCompact, formatPercent } from '../utils/money'
-import { addMonthsToKey, monthLabel } from '../utils/dates'
+import { addMonthsToKey, monthLabel } from '@/lib/dates'
 
 type Scope = 'month' | 'year'
 

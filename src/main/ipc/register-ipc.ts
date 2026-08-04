@@ -19,6 +19,7 @@ import type {
   FinanceEntityMap,
   FinanceSettings
 } from '../../shared/finance'
+import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import type { Repository } from '../store/repository'
 import type { BackupService } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
@@ -32,6 +33,12 @@ const FINANCE_LABEL: Record<FinanceEntity, string> = {
   transactions: 'transação',
   recurring: 'recorrência',
   goals: 'meta'
+}
+
+const PLANNER_LABEL: Record<PlannerEntity, string> = {
+  events: 'compromisso',
+  habits: 'hábito',
+  plannerGoals: 'meta'
 }
 
 /** Quote a CSV cell only when it needs it. */
@@ -145,6 +152,21 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
   ipcMain.handle(IPC.FINANCE_BUDGET_SAVE, (_e, plan: BudgetPlan) => changed(repo.saveBudget(plan)))
   ipcMain.handle(IPC.FINANCE_SETTINGS_SAVE, (_e, s: FinanceSettings) =>
     changed(repo.saveFinanceSettings(s))
+  )
+
+  // ---- Focus Planner ----
+  ipcMain.handle(
+    IPC.PLANNER_SAVE,
+    <K extends PlannerEntity>(_e: unknown, entity: K, items: PlannerEntityMap[K][]) =>
+      changed(repo.savePlanner(entity, items))
+  )
+  ipcMain.handle(IPC.PLANNER_DELETE, (_e, entity: PlannerEntity, id: string) =>
+    guard(`antes de excluir ${PLANNER_LABEL[entity]}`, () =>
+      changed(repo.deletePlanner(entity, id))
+    )
+  )
+  ipcMain.handle(IPC.PLANNER_SETTINGS_SAVE, (_e, s: PlannerSettings) =>
+    changed(repo.savePlannerSettings(s))
   )
 
   ipcMain.handle(IPC.FINANCE_EXPORT_CSV, async (_e, rows: string[][]) => {

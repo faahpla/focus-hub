@@ -15,7 +15,7 @@ import { Field, MoneyInput, SegmentedControl, TagsInput } from './form'
 import { AccountSelect, CardSelect, CategorySelect } from './pickers'
 import { useFinance } from '../hooks/use-finance'
 import { materializeRecurring, nextOccurrence } from '../services/recurrence-service'
-import { MONTH_NAMES_LONG, WEEKDAY_NAMES_SHORT, dayLabel, today } from '../utils/dates'
+import { MONTH_NAMES_LONG, WEEKDAY_NAMES_SHORT, dayLabel, today } from '@/lib/dates'
 
 const METHODS: PaymentMethod[] = ['pix', 'debit', 'credit', 'cash', 'boleto', 'transfer', 'other']
 const FREQUENCIES: RecurrenceFrequency[] = ['monthly', 'weekly', 'yearly']

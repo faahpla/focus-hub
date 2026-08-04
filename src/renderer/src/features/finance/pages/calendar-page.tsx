@@ -18,7 +18,7 @@ import {
   monthLabel,
   relativeDayLabel,
   today
-} from '../utils/dates'
+} from '@/lib/dates'
 
 interface DayEvent {
   kind: 'transaction' | 'invoice' | 'goal'

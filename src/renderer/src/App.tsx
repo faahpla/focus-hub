@@ -5,6 +5,9 @@ import { AppShell } from '@/components/layout/app-shell'
 import { UltraFocusOverlay } from '@/features/session/ultra-focus-overlay'
 import { SessionReportOverlay } from '@/features/session/session-report'
 import { HomePage } from '@/features/home/home-page'
+import { TodayPage } from '@/features/planner/pages/today-page'
+import { AgendaPage } from '@/features/planner/pages/agenda-page'
+import { HabitsPage } from '@/features/planner/pages/habits-page'
 import { ProjectsPage } from '@/features/projects/projects-page'
 import { BoardsPage } from '@/features/boards/boards-page'
 import { IdeasPage } from '@/features/ideas/ideas-page'
@@ -70,7 +73,12 @@ function MainApp(): JSX.Element {
     <TooltipProvider delayDuration={200}>
       <AppShell>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<TodayPage />} />
+          <Route path="/agenda" element={<AgendaPage />} />
+          <Route path="/habitos" element={<HabitsPage />} />
+          {/* The old home: the full-screen timer with ambient sound, Flow mode
+              and the checklist. Reached from "Modo foco" in the timer panel. */}
+          <Route path="/foco" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/boards" element={<BoardsPage />} />
           <Route path="/ideas" element={<IdeasPage />} />

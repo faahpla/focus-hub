@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { currentMonth } from '@/features/finance/utils/dates'
+import { currentMonth } from '@/lib/dates'
 
 export type FinanceTab =
   | 'dashboard'

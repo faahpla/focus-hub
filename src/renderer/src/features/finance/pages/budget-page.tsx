@@ -14,7 +14,7 @@ import { CategorySelect } from '../components/pickers'
 import { useFinance } from '../hooks/use-finance'
 import { monthTotals, transactionsInMonth } from '../services/finance-engine'
 import { formatPercent, percent } from '../utils/money'
-import { addMonthsToKey, monthLabel } from '../utils/dates'
+import { addMonthsToKey, monthLabel } from '@/lib/dates'
 
 function emptyPlan(month: string): BudgetPlan {
   return {

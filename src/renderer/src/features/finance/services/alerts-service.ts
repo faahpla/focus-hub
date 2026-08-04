@@ -6,7 +6,7 @@
  */
 
 import type { FinanceData } from '@shared/finance'
-import { type DayKey, currentMonth, diffDays, relativeDayLabel, today } from '../utils/dates'
+import { type DayKey, currentMonth, diffDays, relativeDayLabel, today } from '@/lib/dates'
 import { formatMoney, formatPercent } from '../utils/money'
 import { cardUsage, monthTotals } from './finance-engine'
 import { averageMonthlyExpense } from './reports-service'

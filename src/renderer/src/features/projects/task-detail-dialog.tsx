@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { ScriptReader } from '@/features/boards/script-reader'
+import { PlanningSection } from '@/features/planner/components/planning-section'
 import { useAppStore } from '@/stores/app-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Priority, Task, TaskStatus } from '@shared/types'
@@ -168,6 +169,8 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
               </div>
             </div>
           </div>
+
+          <PlanningSection task={task} />
 
           {/* Description — often carries a whole script over from a card, so it
               gets real room plus the same full-screen reader the cards have. */}

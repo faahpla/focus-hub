@@ -35,7 +35,7 @@ import { BudgetPage } from './pages/budget-page'
 import { CalendarPage } from './pages/calendar-page'
 import { ReportsPage } from './pages/reports-page'
 import { useRecurringGeneration } from './hooks/use-finance'
-import { currentMonth, monthLabel } from './utils/dates'
+import { currentMonth, monthLabel } from '@/lib/dates'
 
 const TABS: { id: FinanceTab; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },

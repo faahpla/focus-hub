@@ -4,6 +4,7 @@
  */
 
 import type { FinanceData } from './finance'
+import type { CalendarEvent, Habit, PlannerGoal, PlannerSettings } from './planner'
 
 export type ID = string
 
@@ -28,9 +29,13 @@ export interface ChecklistItem {
   done: boolean
 }
 
+/** How much gas a task needs — the scheduler puts heavy work early. */
+export type TaskEnergy = 'low' | 'medium' | 'high'
+
 export interface Task {
   id: ID
-  projectId: ID
+  /** Optional: a task can live in the inbox, or belong to a card instead. */
+  projectId?: ID
   title: string
   description?: string
   checklist: ChecklistItem[]
@@ -40,6 +45,33 @@ export interface Task {
   actualMinutes: number
   tags: string[]
   dueDate?: string // ISO
+
+  // --- Scheduling ---------------------------------------------------------
+  // Deliberately separate from `status`: *what state the work is in* and
+  // *when you plan to do it* are different questions. Dragging a task to
+  // another day must never silently mark it as started.
+  /** YYYY-MM-DD — the day you intend to do it. */
+  scheduledDate?: string
+  /** HH:mm — set only when it occupies a real block on the calendar. */
+  startTime?: string
+  /** Length of the block. Falls back to `estimatedMinutes`, then the default. */
+  durationMinutes?: number
+  /** True once the user placed it by hand, so auto-planning leaves it alone. */
+  pinned?: boolean
+  energy?: TaskEnergy
+
+  // --- Relationships ------------------------------------------------------
+  /** Tasks that must be done first. Cycles are rejected on save. */
+  blockedBy?: ID[]
+  /** The board card this task helps deliver (a video, an article…). */
+  cardId?: ID
+  /** Production goal this task feeds when completed. */
+  goalId?: ID
+  /** Expected cost in cents — shows as *committed* against a project budget. */
+  expectedCost?: number
+  /** When it was marked done, for stats and goal progress. */
+  completedAt?: string
+
   createdAt: string
   updatedAt: string
   order: number
@@ -159,7 +191,11 @@ export interface BoardCard {
   tags: string[]
   /** Marked finished — either by hand or by landing in a "done" column. */
   done?: boolean
-  /** When set, this card mirrors a Task (checklist, priority, sessions). */
+  /**
+   * @deprecated A card is a deliverable and needs many tasks, not one. Tasks
+   * now point at their card through `Task.cardId`; this is kept so older
+   * documents migrate cleanly and is no longer written to.
+   */
   taskId?: ID
   dueDate?: string // ISO
   createdAt: string
@@ -241,6 +277,10 @@ export interface AppData {
   stats: Stats
   settings: Settings
   finance: FinanceData
+  events: CalendarEvent[]
+  habits: Habit[]
+  plannerGoals: PlannerGoal[]
+  planner: PlannerSettings
 }
 
 /** One automatic snapshot of the whole app document. */

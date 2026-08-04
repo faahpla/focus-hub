@@ -13,7 +13,7 @@ import { Money } from '../components/money'
 import { RecurringDialog } from '../components/recurring-dialog'
 import { useFinance } from '../hooks/use-finance'
 import { monthlyCost, nextOccurrence } from '../services/recurrence-service'
-import { dayLabel } from '../utils/dates'
+import { dayLabel } from '@/lib/dates'
 
 export function RecurringPage(): JSX.Element {
   const finance = useFinance()

@@ -24,6 +24,14 @@ export function TimerDisplay({
   const c = 2 * Math.PI * r
   const dash = c * Math.min(1, Math.max(0, progress))
 
+  /**
+   * The clock used to be a fixed 3.4rem at every size, which crowds the ring
+   * once the widget gets small — the Today panel draws it at 168px. Cap it at
+   * the original size so the full-screen timers are untouched, and let it
+   * scale down proportionally below that.
+   */
+  const fontSize = Math.min(54.4, size * 0.19)
+
   return (
     <div className={cn('relative', className)} style={{ width: size, height: size }}>
       {running && (
@@ -54,7 +62,10 @@ export function TimerDisplay({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="tabular font-mono text-[3.4rem] font-semibold leading-none tracking-tight text-foreground">
+        <span
+          className="tabular font-mono font-semibold leading-none tracking-tight text-foreground"
+          style={{ fontSize }}
+        >
           {formatClock(remainingSeconds, withHours)}
         </span>
       </div>

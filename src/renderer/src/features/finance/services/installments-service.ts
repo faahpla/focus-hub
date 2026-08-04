@@ -8,7 +8,7 @@
  */
 
 import type { Transaction } from '@shared/finance'
-import { type DayKey, addMonthsToDay, today } from '../utils/dates'
+import { type DayKey, addMonthsToDay, today } from '@/lib/dates'
 import { uid } from '@/lib/utils'
 
 /** Parcel values in cents, summing exactly to `total`. */

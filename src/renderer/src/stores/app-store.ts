@@ -17,6 +17,8 @@ import type {
   FinanceSettings
 } from '@shared/finance'
 import { emptyFinanceData } from '@shared/finance'
+import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '@shared/planner'
+import { DEFAULT_PLANNER_SETTINGS } from '@shared/planner'
 
 interface AppState extends AppData {
   loaded: boolean
@@ -47,6 +49,13 @@ interface AppState extends AppData {
   deleteTransactions: (ids: string[]) => Promise<void>
   saveBudget: (plan: BudgetPlan) => Promise<void>
   saveFinanceSettings: (patch: Partial<FinanceSettings>) => Promise<void>
+
+  savePlanner: <K extends PlannerEntity>(
+    entity: K,
+    items: PlannerEntityMap[K] | PlannerEntityMap[K][]
+  ) => Promise<void>
+  deletePlanner: (entity: PlannerEntity, id: string) => Promise<void>
+  savePlannerSettings: (patch: Partial<PlannerSettings>) => Promise<void>
 }
 
 const EMPTY: AppData = {
@@ -82,7 +91,11 @@ const EMPTY: AppData = {
     musicSources: [],
     alwaysElevate: false
   },
-  finance: emptyFinanceData()
+  finance: emptyFinanceData(),
+  events: [],
+  habits: [],
+  plannerGoals: [],
+  planner: { ...DEFAULT_PLANNER_SETTINGS }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -126,5 +139,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveFinanceSettings: async (patch) => {
     const next = { ...get().finance.settings, ...patch }
     set({ ...(await window.focusHub.saveFinanceSettings(next)) })
+  },
+
+  savePlanner: async (entity, items) =>
+    set({ ...(await window.focusHub.savePlanner(entity, items)) }),
+  deletePlanner: async (entity, id) =>
+    set({ ...(await window.focusHub.deletePlanner(entity, id)) }),
+  savePlannerSettings: async (patch) => {
+    const next = { ...get().planner, ...patch }
+    set({ ...(await window.focusHub.savePlannerSettings(next)) })
   }
 }))

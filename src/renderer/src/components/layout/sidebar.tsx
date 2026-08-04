@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
+  CalendarDays,
+  Flame,
   FolderKanban,
   Home,
   KanbanSquare,
@@ -14,10 +16,12 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app-store'
 
 const NAV = [
-  { to: '/', icon: Home, label: 'Início' },
+  { to: '/', icon: Home, label: 'Hoje' },
+  { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
   { to: '/projects', icon: FolderKanban, label: 'Projetos' },
   { to: '/boards', icon: KanbanSquare, label: 'Quadros' },
   { to: '/ideas', icon: Lightbulb, label: 'Ideias' },
+  { to: '/habitos', icon: Flame, label: 'Hábitos e metas' },
   { to: '/finance', icon: Wallet, label: 'Finance HUB' },
   { to: '/stats', icon: BarChart3, label: 'Estatísticas' },
   { to: '/settings', icon: Settings, label: 'Ajustes' }

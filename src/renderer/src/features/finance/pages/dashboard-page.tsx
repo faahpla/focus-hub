@@ -38,7 +38,7 @@ import {
   transactionsInMonth
 } from '../services/finance-engine'
 import { percent } from '../utils/money'
-import { currentMonth, monthLabel } from '../utils/dates'
+import { currentMonth, monthLabel } from '@/lib/dates'
 
 export function DashboardPage(): JSX.Element {
   const finance = useFinance()

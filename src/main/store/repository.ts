@@ -19,6 +19,8 @@ import type {
   FinanceSettings
 } from '../../shared/finance'
 import { DEFAULT_FINANCE_SETTINGS, SEED_CATEGORIES, emptyFinanceData } from '../../shared/finance'
+import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
+import { DEFAULT_PLANNER_SETTINGS } from '../../shared/planner'
 
 const now = (): string => new Date().toISOString()
 const today = (): string => new Date().toISOString().slice(0, 10)
@@ -124,7 +126,11 @@ function defaultData(): AppData {
     sessions: [],
     stats: DEFAULT_STATS,
     settings: DEFAULT_SETTINGS,
-    finance: emptyFinanceData()
+    finance: emptyFinanceData(),
+    events: [],
+    habits: [],
+    plannerGoals: [],
+    planner: { ...DEFAULT_PLANNER_SETTINGS }
   }
 }
 
@@ -221,7 +227,67 @@ export class Repository {
         }
       }
     }
+    // Focus Planner.
+    for (const key of ['events', 'habits', 'plannerGoals'] as const) {
+      if (!Array.isArray(data[key])) {
+        ;(data[key] as unknown[]) = []
+        changed = true
+      }
+    }
+    const planner = { ...DEFAULT_PLANNER_SETTINGS, ...(data.planner ?? {}) }
+    if (JSON.stringify(planner) !== JSON.stringify(data.planner)) {
+      data.planner = planner
+      changed = true
+    }
+    for (const habit of data.habits) {
+      if (!habit.checkins || typeof habit.checkins !== 'object') {
+        habit.checkins = {}
+        changed = true
+      }
+    }
+    // A card used to point at a single task. Invert the link so a card can be
+    // a deliverable made of many tasks, and drop the old one-to-one field.
+    for (const card of data.cards) {
+      if (!card.taskId) continue
+      const task = data.tasks.find((t) => t.id === card.taskId)
+      if (task && !task.cardId) task.cardId = card.id
+      delete card.taskId
+      changed = true
+    }
     if (changed) this.store.set('data', data)
+  }
+
+  // ---- Focus Planner ----
+
+  savePlanner<K extends PlannerEntity>(entity: K, items: PlannerEntityMap[K][]): AppData {
+    const data = this.getAll()
+    const list = data[entity] as { id: string }[]
+    const byId = new Map(list.map((item) => [item.id, item]))
+    for (const item of items) byId.set(item.id, item)
+    ;(data[entity] as unknown) = Array.from(byId.values())
+    return this.setAll(data)
+  }
+
+  /** Removes a planner entity, leaving the work that referenced it intact. */
+  deletePlanner(entity: PlannerEntity, id: string): AppData {
+    const data = this.getAll()
+    ;(data[entity] as unknown) = (data[entity] as { id: string }[]).filter((i) => i.id !== id)
+
+    if (entity === 'plannerGoals') {
+      data.tasks = data.tasks.map((t) => (t.goalId === id ? { ...t, goalId: undefined } : t))
+    }
+    if (entity === 'habits') {
+      data.plannerGoals = data.plannerGoals.map((g) =>
+        g.habitId === id ? { ...g, habitId: undefined } : g
+      )
+    }
+    return this.setAll(data)
+  }
+
+  savePlannerSettings(settings: PlannerSettings): AppData {
+    const data = this.getAll()
+    data.planner = settings
+    return this.setAll(data)
   }
 
   // ---- Finance HUB ----
@@ -399,11 +465,15 @@ export class Repository {
 
   deleteTask(id: string): AppData {
     const data = this.getAll()
-    data.tasks = data.tasks.filter((t) => t.id !== id)
-    // Any card that mirrored this task falls back to being a plain card.
-    data.cards = data.cards.map((c) =>
-      c.taskId === id ? { ...c, taskId: undefined, updatedAt: now() } : c
-    )
+    data.tasks = data.tasks
+      .filter((t) => t.id !== id)
+      // A dependency on a task that no longer exists would block its
+      // dependants forever, so the link goes with it.
+      .map((t) =>
+        t.blockedBy?.includes(id)
+          ? { ...t, blockedBy: t.blockedBy.filter((b) => b !== id), updatedAt: now() }
+          : t
+      )
     return this.setAll(data)
   }
 
@@ -419,8 +489,13 @@ export class Repository {
   deleteBoard(id: string): AppData {
     const data = this.getAll()
     data.boards = data.boards.filter((b) => b.id !== id)
-    // Cards belong to their board; linked tasks are intentionally kept.
+    // Cards belong to their board; the tasks they produced are kept — they are
+    // real work, often already timed and counted towards goals.
+    const dropped = new Set(data.cards.filter((c) => c.boardId === id).map((c) => c.id))
     data.cards = data.cards.filter((c) => c.boardId !== id)
+    data.tasks = data.tasks.map((t) =>
+      t.cardId && dropped.has(t.cardId) ? { ...t, cardId: undefined, updatedAt: now() } : t
+    )
     return this.setAll(data)
   }
 
@@ -445,6 +520,9 @@ export class Repository {
   deleteCard(id: string): AppData {
     const data = this.getAll()
     data.cards = data.cards.filter((c) => c.id !== id)
+    data.tasks = data.tasks.map((t) =>
+      t.cardId === id ? { ...t, cardId: undefined, updatedAt: now() } : t
+    )
     return this.setAll(data)
   }
 

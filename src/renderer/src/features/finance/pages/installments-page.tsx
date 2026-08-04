@@ -12,7 +12,7 @@ import { useFinance } from '../hooks/use-finance'
 import { installmentGroups } from '../services/finance-engine'
 import { forecastByMonth } from '../services/installments-service'
 import { percent } from '../utils/money'
-import { addMonthsToKey, currentMonth, dayLabel, monthLabel, monthsBetween } from '../utils/dates'
+import { addMonthsToKey, currentMonth, dayLabel, monthLabel, monthsBetween } from '@/lib/dates'
 
 export function InstallmentsPage(): JSX.Element {
   const finance = useFinance()

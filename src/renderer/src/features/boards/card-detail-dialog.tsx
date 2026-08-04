@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  ArrowRight,
   Check,
   ChevronDown,
   Copy,
@@ -9,15 +7,10 @@ import {
   FileText,
   Folder,
   Hash,
-  Link2,
-  ListChecks,
   Maximize2,
   Paperclip,
-  Play,
-  Sparkles,
   Trash2,
   Type,
-  Unlink,
   X
 } from 'lucide-react'
 import {
@@ -32,19 +25,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
-import { DynamicIcon } from '@/components/dynamic-icon'
-import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
+import { CardTasksPanel } from '@/features/planner/components/card-tasks-panel'
 import { useAppStore } from '@/stores/app-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
-import { useSessionStore } from '@/stores/session-store'
-import { useToastStore } from '@/stores/toast-store'
-import type { Board, BoardCard, CardAsset, Task } from '@shared/types'
+import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { isCardDone } from './board-templates'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
@@ -102,27 +91,14 @@ function CardEditor({
   onClose: () => void
 }): JSX.Element {
   const cardId = card.id
-  const allTasks = useAppStore((s) => s.tasks)
-  const allProjects = useAppStore((s) => s.projects)
   const saveCard = useAppStore((s) => s.saveCard)
   const deleteCard = useAppStore((s) => s.deleteCard)
-  const saveTask = useAppStore((s) => s.saveTask)
-  const defaultMinutes = useAppStore((s) => s.settings.defaultDurationMinutes)
-  const configure = useSessionStore((s) => s.configure)
-  const pushToast = useToastStore((s) => s.push)
-  const navigate = useNavigate()
 
   const [tagDraft, setTagDraft] = useState('')
-  const [taskOpen, setTaskOpen] = useState(false)
   const [readerOpen, setReaderOpen] = useState(false)
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
 
   const assets = card.assets ?? []
-  const projects = allProjects.filter((p) => !p.archived)
-  const linkedTask = card.taskId ? allTasks.find((t) => t.id === card.taskId) : undefined
-  const boardProject = board.projectId
-    ? projects.find((p) => p.id === board.projectId)
-    : undefined
   const column = board.columns.find((c) => c.id === card.columnId)
   const finished = isCardDone(card, board.columns)
 
@@ -192,44 +168,6 @@ function CardEditor({
   const pickAsset = async (kind: 'file' | 'folder'): Promise<void> => {
     const picked = await window.focusHub.pickPath(kind)
     if (picked) addAsset(picked)
-  }
-
-  /** Promote this card into a real Task and link the two. */
-  const convertToTask = async (projectId: string): Promise<void> => {
-    const stamp = new Date().toISOString()
-    const task: Task = {
-      id: uid(),
-      projectId,
-      title: card.title,
-      description: card.notes,
-      checklist: [],
-      priority: 'medium',
-      status: 'todo',
-      actualMinutes: 0,
-      tags: [...card.tags],
-      createdAt: stamp,
-      updatedAt: stamp,
-      order: allTasks.filter((t) => t.projectId === projectId).length
-    }
-    await saveTask(task)
-    patch({ taskId: task.id })
-    pushToast({
-      title: 'Card virou tarefa',
-      lines: ['Agora ele tem checklist, prioridade e pode virar sessão de foco.'],
-      variant: 'success'
-    })
-  }
-
-  const startSession = (): void => {
-    if (!linkedTask) return
-    const project = allProjects.find((p) => p.id === linkedTask.projectId)
-    configure({
-      project,
-      task: linkedTask,
-      minutes: project?.defaultDurationMinutes ?? defaultMinutes
-    })
-    onClose()
-    navigate('/')
   }
 
   return (
@@ -345,96 +283,8 @@ function CardEditor({
 
             {/* Side rail */}
             <div className="w-[340px] shrink-0 space-y-5 overflow-y-auto border-l border-border/70 p-5 scrollbar-thin">
-              {/* Task link */}
-              <div className="rounded-xl border border-border/70 bg-surface/40 p-3.5">
-                {linkedTask ? (
-                  <>
-                    <div className="mb-2.5 flex items-center justify-between gap-2">
-                      <p className="flex items-center gap-1.5 text-sm font-medium">
-                        <ListChecks className="h-4 w-4 text-primary" /> Tarefa
-                      </p>
-                      <button
-                        onClick={() => patch({ taskId: undefined })}
-                        className="no-drag flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        <Unlink className="h-3 w-3" /> Desvincular
-                      </button>
-                    </div>
-                    <p className="mb-2.5 text-xs text-muted-foreground">
-                      {linkedTask.title}
-                      {linkedTask.checklist.length > 0 &&
-                        ` · ${linkedTask.checklist.filter((c) => c.done).length}/${
-                          linkedTask.checklist.length
-                        }`}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button size="sm" variant="primary" onClick={startSession}>
-                        <Play className="h-3.5 w-3.5 fill-current" /> Iniciar sessão
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => setTaskOpen(true)}>
-                        <Maximize2 className="h-3.5 w-3.5" /> Abrir
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
-                      <Sparkles className="h-4 w-4 text-primary" /> Transformar em tarefa
-                    </p>
-                    <p className="mb-2.5 text-xs text-muted-foreground">
-                      Ganha checklist, prioridade e botão de Iniciar Sessão.
-                    </p>
-                    {projects.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Crie um projeto primeiro em <strong>Projetos</strong>.
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {boardProject ? (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() => void convertToTask(boardProject.id)}
-                          >
-                            <ArrowRight className="h-3.5 w-3.5" /> Virar tarefa
-                          </Button>
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="sm" variant="primary">
-                                <ArrowRight className="h-3.5 w-3.5" /> Virar tarefa
-                                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                              <DropdownMenuLabel>Em qual projeto?</DropdownMenuLabel>
-                              {projects.map((p) => (
-                                <DropdownMenuItem
-                                  key={p.id}
-                                  onSelect={() => void convertToTask(p.id)}
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <DynamicIcon
-                                      name={p.icon}
-                                      className="h-4 w-4"
-                                      style={{ color: `hsl(${p.color})` }}
-                                    />
-                                    {p.name}
-                                  </span>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        <LinkExistingTask
-                          tasks={allTasks}
-                          onPick={(taskId) => patch({ taskId })}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              {/* Tasks — a card is a deliverable made of several steps. */}
+              <CardTasksPanel card={card} board={board} onClose={onClose} />
 
               {/* Description */}
               <div>
@@ -605,9 +455,6 @@ function CardEditor({
         </DialogContent>
       </Dialog>
 
-      {taskOpen && linkedTask && (
-        <TaskDetailDialog taskId={linkedTask.id} onClose={() => setTaskOpen(false)} />
-      )}
     </>
   )
 }
@@ -650,43 +497,3 @@ function AssetRow({
   )
 }
 
-function LinkExistingTask({
-  tasks,
-  onPick
-}: {
-  tasks: Task[]
-  onPick: (taskId: string) => void
-}): JSX.Element | null {
-  const projects = useAppStore((s) => s.projects)
-  const open = tasks.filter((t) => t.status !== 'done')
-  if (open.length === 0) return null
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="secondary">
-          <Link2 className="h-3.5 w-3.5" /> Vincular
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-[18rem] overflow-y-auto">
-        <DropdownMenuLabel>Tarefas em aberto</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {open.map((t) => {
-          const project = projects.find((p) => p.id === t.projectId)
-          return (
-            <DropdownMenuItem key={t.id} onSelect={() => onPick(t.id)}>
-              <span className="flex flex-col">
-                <span className="truncate">{t.title}</span>
-                {project && (
-                  <span className={cn('truncate text-[11px] text-muted-foreground')}>
-                    {project.name}
-                  </span>
-                )}
-              </span>
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}

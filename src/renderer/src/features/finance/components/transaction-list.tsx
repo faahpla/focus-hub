@@ -17,7 +17,7 @@ import type { Transaction } from '@shared/finance'
 import { Money } from './money'
 import { useFinance } from '../hooks/use-finance'
 import { groupByDay } from '../services/finance-engine'
-import { relativeDayLabel } from '../utils/dates'
+import { relativeDayLabel } from '@/lib/dates'
 import { installmentLabel } from '../services/installments-service'
 
 const TYPE_ICON = {

@@ -19,7 +19,7 @@ import {
   today,
   toDayKey,
   parseLocal
-} from '../utils/dates'
+} from '@/lib/dates'
 
 /** How far ahead bills are materialised — enough to fill the calendar. */
 const HORIZON_MONTHS = 2

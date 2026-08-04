@@ -133,5 +133,50 @@ export function monthsBetween(from: MonthKey, to: MonthKey): MonthKey[] {
   return out
 }
 
+/** Monday-based start of the week containing `day`. */
+export function startOfWeek(day: DayKey): DayKey {
+  const date = parseLocal(day)
+  // getDay() is Sunday-based; shift so Monday is 0.
+  const offset = (date.getDay() + 6) % 7
+  return addDaysToKey(day, -offset)
+}
+
+/** The seven day keys of the week containing `day`, Monday first. */
+export function weekDays(day: DayKey): DayKey[] {
+  const start = startOfWeek(day)
+  return Array.from({ length: 7 }, (_, i) => addDaysToKey(start, i))
+}
+
+/** "5 – 11 Ago" — the label for a week range. */
+export function weekLabel(day: DayKey): string {
+  const days = weekDays(day)
+  const first = parseLocal(days[0])
+  const last = parseLocal(days[6])
+  const sameMonth = first.getMonth() === last.getMonth()
+  return sameMonth
+    ? `${first.getDate()} – ${last.getDate()} ${MONTHS_SHORT[last.getMonth()]}`
+    : `${first.getDate()} ${MONTHS_SHORT[first.getMonth()]} – ${last.getDate()} ${MONTHS_SHORT[last.getMonth()]}`
+}
+
+/**
+ * Six weeks of day keys covering `month`, Monday first — the grid a month view
+ * renders. Always 42 cells so the layout never jumps between months.
+ */
+export function monthGrid(month: MonthKey): DayKey[] {
+  const start = startOfWeek(`${month}-01`)
+  return Array.from({ length: 42 }, (_, i) => addDaysToKey(start, i))
+}
+
+/** "Segunda" — full weekday name, for greetings and headers. */
+const WEEKDAYS_LONG = [
+  'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'
+]
+
+export function weekdayLong(day: DayKey): string {
+  return WEEKDAYS_LONG[parseLocal(day).getDay()]
+}
+
 export const MONTH_NAMES_LONG = MONTHS_LONG
 export const WEEKDAY_NAMES_SHORT = WEEKDAYS_SHORT
+/** Monday-first weekday initials, matching `weekDays` and `monthGrid`. */
+export const WEEKDAY_NAMES_MONDAY = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']

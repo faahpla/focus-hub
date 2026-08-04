@@ -15,6 +15,7 @@ import type {
   UpdateStatus
 } from '../shared/types'
 import type { BudgetPlan, FinanceEntity, FinanceSettings } from '../shared/finance'
+import type { PlannerEntity, PlannerSettings } from '../shared/planner'
 
 const api: FocusHubApi = {
   getAllData: () => ipcRenderer.invoke(IPC.DATA_GET_ALL),
@@ -47,6 +48,12 @@ const api: FocusHubApi = {
   saveBudget: (plan: BudgetPlan) => ipcRenderer.invoke(IPC.FINANCE_BUDGET_SAVE, plan),
   saveFinanceSettings: (s: FinanceSettings) => ipcRenderer.invoke(IPC.FINANCE_SETTINGS_SAVE, s),
   exportTransactionsCsv: (rows: string[][]) => ipcRenderer.invoke(IPC.FINANCE_EXPORT_CSV, rows),
+
+  savePlanner: (entity, items) =>
+    ipcRenderer.invoke(IPC.PLANNER_SAVE, entity, Array.isArray(items) ? items : [items]),
+  deletePlanner: (entity: PlannerEntity, id: string) =>
+    ipcRenderer.invoke(IPC.PLANNER_DELETE, entity, id),
+  savePlannerSettings: (s: PlannerSettings) => ipcRenderer.invoke(IPC.PLANNER_SETTINGS_SAVE, s),
 
   applyFlow: (config: FlowConfig) => ipcRenderer.invoke(IPC.FLOW_APPLY, config),
   releaseFlow: () => ipcRenderer.invoke(IPC.FLOW_RELEASE),

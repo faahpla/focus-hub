@@ -27,7 +27,7 @@ import { useFinance } from '../hooks/use-finance'
 import { allTags } from '../services/finance-engine'
 import { buildInstallments } from '../services/installments-service'
 import { formatMoney } from '../utils/money'
-import { nowTime, today } from '../utils/dates'
+import { nowTime, today } from '@/lib/dates'
 
 const METHODS: PaymentMethod[] = ['pix', 'debit', 'credit', 'cash', 'boleto', 'transfer', 'other']
 

@@ -24,6 +24,7 @@ import type {
   FinanceEntityMap,
   FinanceSettings
 } from './finance'
+import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from './planner'
 
 export const IPC = {
   // Data / persistence
@@ -56,6 +57,11 @@ export const IPC = {
   FINANCE_BUDGET_SAVE: 'finance:saveBudget',
   FINANCE_SETTINGS_SAVE: 'finance:saveSettings',
   FINANCE_EXPORT_CSV: 'finance:exportCsv',
+
+  // Focus Planner
+  PLANNER_SAVE: 'planner:save',
+  PLANNER_DELETE: 'planner:delete',
+  PLANNER_SETTINGS_SAVE: 'planner:saveSettings',
 
   // Flow / OS integration
   FLOW_APPLY: 'flow:apply',
@@ -124,6 +130,13 @@ export interface FocusHubApi {
   saveFinanceSettings(settings: FinanceSettings): Promise<AppData>
   /** Write the given rows to a .csv the user picks. */
   exportTransactionsCsv(rows: string[][]): Promise<{ ok: boolean; path?: string }>
+
+  savePlanner<K extends PlannerEntity>(
+    entity: K,
+    items: PlannerEntityMap[K] | PlannerEntityMap[K][]
+  ): Promise<AppData>
+  deletePlanner(entity: PlannerEntity, id: string): Promise<AppData>
+  savePlannerSettings(settings: PlannerSettings): Promise<AppData>
 
   applyFlow(config: FlowConfig): Promise<FlowApplyResult>
   releaseFlow(): Promise<void>

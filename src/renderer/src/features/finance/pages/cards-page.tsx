@@ -19,7 +19,7 @@ import { TransactionList } from '../components/transaction-list'
 import { useFinance } from '../hooks/use-finance'
 import { cardUsage } from '../services/finance-engine'
 import { formatPercent } from '../utils/money'
-import { dayLabel, monthLabel, today } from '../utils/dates'
+import { dayLabel, monthLabel, today } from '@/lib/dates'
 
 export function CardsPage(): JSX.Element {
   const finance = useFinance()
