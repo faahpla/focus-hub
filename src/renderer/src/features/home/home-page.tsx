@@ -26,6 +26,7 @@ import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { FlowSummary } from '@/features/session/flow-summary'
 import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
 import { AmbientBar } from '@/features/ambient/ambient-bar'
+import { HomeFinanceCard } from '@/features/finance/components/home-finance-card'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { DURATION_PRESETS } from '@shared/types'
@@ -365,6 +366,8 @@ export function HomePage(): JSX.Element {
             value={String(stats.streakDays)}
           />
         </div>
+
+        <HomeFinanceCard />
 
         {activeTask && (
           <div className="flex min-h-0 flex-1 flex-col gap-3">

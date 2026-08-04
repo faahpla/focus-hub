@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DynamicIcon, PROJECT_ICONS } from '@/components/dynamic-icon'
+import { MoneyInput } from '@/features/finance/components/form'
+import { ProjectBudgetBar } from '@/features/finance/components/project-budget-bar'
 import { AppListEditor, ResourceListEditor, SiteListEditor } from './list-editors'
 import { TaskManager } from './task-manager'
 import { useAppStore } from '@/stores/app-store'
@@ -209,6 +211,16 @@ export function ProjectEditor({
                   </select>
                 </Field>
               </div>
+              <Field
+                label="Orçamento do projeto"
+                hint="Some as despesas marcadas com este projeto no Finance HUB. Deixe zerado para não acompanhar."
+              >
+                <MoneyInput
+                  value={draft.budget ?? 0}
+                  onChange={(budget) => patch({ budget: budget > 0 ? budget : undefined })}
+                />
+              </Field>
+              {draft.budget ? <ProjectBudgetBar projectId={draft.id} budget={draft.budget} /> : null}
             </>
           )}
 

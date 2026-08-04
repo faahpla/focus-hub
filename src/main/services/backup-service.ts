@@ -79,7 +79,8 @@ export class BackupService {
         boards: parsed.data.boards?.length ?? 0,
         cards: parsed.data.cards?.length ?? 0,
         tasks: parsed.data.tasks?.length ?? 0,
-        ideas: parsed.data.ideas?.length ?? 0
+        ideas: parsed.data.ideas?.length ?? 0,
+        transactions: parsed.data.finance?.transactions?.length ?? 0
       })
     }
     return out

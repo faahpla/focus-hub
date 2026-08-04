@@ -8,6 +8,7 @@ import { HomePage } from '@/features/home/home-page'
 import { ProjectsPage } from '@/features/projects/projects-page'
 import { BoardsPage } from '@/features/boards/boards-page'
 import { IdeasPage } from '@/features/ideas/ideas-page'
+import { FinancePage } from '@/features/finance/finance-page'
 import { StatsPage } from '@/features/stats/stats-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { QuickCapturePage } from '@/features/quick-capture/quick-capture-page'
@@ -73,6 +74,7 @@ function MainApp(): JSX.Element {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/boards" element={<BoardsPage />} />
           <Route path="/ideas" element={<IdeasPage />} />
+          <Route path="/finance" element={<FinancePage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

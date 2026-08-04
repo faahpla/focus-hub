@@ -12,6 +12,13 @@ import type {
   Task
 } from '../../shared/types'
 import { XP_PER_LEVEL } from '../../shared/types'
+import type {
+  BudgetPlan,
+  FinanceEntity,
+  FinanceEntityMap,
+  FinanceSettings
+} from '../../shared/finance'
+import { DEFAULT_FINANCE_SETTINGS, SEED_CATEGORIES, emptyFinanceData } from '../../shared/finance'
 
 const now = (): string => new Date().toISOString()
 const today = (): string => new Date().toISOString().slice(0, 10)
@@ -116,7 +123,8 @@ function defaultData(): AppData {
     cards: [],
     sessions: [],
     stats: DEFAULT_STATS,
-    settings: DEFAULT_SETTINGS
+    settings: DEFAULT_SETTINGS,
+    finance: emptyFinanceData()
   }
 }
 
@@ -177,7 +185,153 @@ export class Repository {
         changed = true
       }
     }
+    // Finance HUB arrived after the first releases — backfill the whole branch.
+    if (!data.finance) {
+      data.finance = emptyFinanceData()
+      changed = true
+    } else {
+      const fin = data.finance
+      for (const key of [
+        'accounts',
+        'cards',
+        'categories',
+        'transactions',
+        'recurring',
+        'goals',
+        'budgets'
+      ] as const) {
+        if (!Array.isArray(fin[key])) {
+          ;(fin[key] as unknown[]) = []
+          changed = true
+        }
+      }
+      if (fin.categories.length === 0) {
+        fin.categories = SEED_CATEGORIES.map((c) => ({ ...c, archived: false }))
+        changed = true
+      }
+      const settings = { ...DEFAULT_FINANCE_SETTINGS, ...(fin.settings ?? {}) }
+      if (JSON.stringify(settings) !== JSON.stringify(fin.settings)) {
+        fin.settings = settings
+        changed = true
+      }
+      for (const tx of fin.transactions) {
+        if (!Array.isArray(tx.tags)) {
+          tx.tags = []
+          changed = true
+        }
+      }
+    }
     if (changed) this.store.set('data', data)
+  }
+
+  // ---- Finance HUB ----
+
+  /**
+   * Upsert into any finance collection. One generic path keeps the IPC surface
+   * small: a new collection is a new key in FinanceEntityMap, nothing else.
+   */
+  saveFinance<K extends FinanceEntity>(entity: K, items: FinanceEntityMap[K][]): AppData {
+    const data = this.getAll()
+    const list = data.finance[entity] as { id: string }[]
+    const byId = new Map(list.map((item) => [item.id, item]))
+    for (const item of items) byId.set(item.id, item)
+    ;(data.finance[entity] as unknown) = Array.from(byId.values())
+    return this.setAll(data)
+  }
+
+  /**
+   * Delete from a finance collection, keeping references honest. Nothing here
+   * cascades into deleting a user's transactions — history survives, it just
+   * loses the link, the same rule boards follow for projects.
+   */
+  deleteFinance(entity: FinanceEntity, id: string): AppData {
+    const data = this.getAll()
+    const fin = data.finance
+    ;(fin[entity] as unknown) = (fin[entity] as { id: string }[]).filter((i) => i.id !== id)
+
+    switch (entity) {
+      case 'accounts':
+        fin.transactions = fin.transactions.map((t) =>
+          t.accountId === id || t.toAccountId === id
+            ? {
+                ...t,
+                accountId: t.accountId === id ? undefined : t.accountId,
+                toAccountId: t.toAccountId === id ? undefined : t.toAccountId
+              }
+            : t
+        )
+        fin.cards = fin.cards.map((c) => (c.accountId === id ? { ...c, accountId: undefined } : c))
+        fin.recurring = fin.recurring.map((r) =>
+          r.accountId === id ? { ...r, accountId: undefined } : r
+        )
+        fin.goals = fin.goals.map((g) => (g.accountId === id ? { ...g, accountId: undefined } : g))
+        break
+      case 'cards':
+        fin.transactions = fin.transactions.map((t) =>
+          t.cardId === id ? { ...t, cardId: undefined } : t
+        )
+        fin.recurring = fin.recurring.map((r) => (r.cardId === id ? { ...r, cardId: undefined } : r))
+        break
+      case 'categories': {
+        // Subcategories of a removed parent are promoted, not destroyed.
+        fin.categories = fin.categories.map((c) =>
+          c.parentId === id ? { ...c, parentId: undefined } : c
+        )
+        fin.transactions = fin.transactions.map((t) =>
+          t.categoryId === id || t.subcategoryId === id
+            ? {
+                ...t,
+                categoryId: t.categoryId === id ? undefined : t.categoryId,
+                subcategoryId: t.subcategoryId === id ? undefined : t.subcategoryId
+              }
+            : t
+        )
+        fin.recurring = fin.recurring.map((r) =>
+          r.categoryId === id ? { ...r, categoryId: undefined } : r
+        )
+        fin.budgets = fin.budgets.map((b) => ({
+          ...b,
+          categories: b.categories.filter((c) => c.categoryId !== id)
+        }))
+        break
+      }
+      case 'recurring':
+        // Rows already generated stay — they are real, past money movements.
+        fin.transactions = fin.transactions.map((t) =>
+          t.recurringId === id ? { ...t, recurringId: undefined } : t
+        )
+        break
+      case 'goals':
+        fin.transactions = fin.transactions.map((t) =>
+          t.goalId === id ? { ...t, goalId: undefined } : t
+        )
+        break
+      case 'transactions':
+        break
+    }
+    return this.setAll(data)
+  }
+
+  /** Delete several transactions at once (a whole installment group). */
+  deleteTransactions(ids: string[]): AppData {
+    const data = this.getAll()
+    const drop = new Set(ids)
+    data.finance.transactions = data.finance.transactions.filter((t) => !drop.has(t.id))
+    return this.setAll(data)
+  }
+
+  saveBudget(plan: BudgetPlan): AppData {
+    const data = this.getAll()
+    const idx = data.finance.budgets.findIndex((b) => b.month === plan.month)
+    if (idx >= 0) data.finance.budgets[idx] = plan
+    else data.finance.budgets.push(plan)
+    return this.setAll(data)
+  }
+
+  saveFinanceSettings(settings: FinanceSettings): AppData {
+    const data = this.getAll()
+    data.finance.settings = settings
+    return this.setAll(data)
   }
 
   getAll(): AppData {
@@ -214,6 +368,13 @@ export class Repository {
     )
     data.cards = data.cards.map((c) =>
       c.taskId && orphanTasks.has(c.taskId) ? { ...c, taskId: undefined, updatedAt: now() } : c
+    )
+    // Money already spent stays on the books — it just stops being attributed.
+    data.finance.transactions = data.finance.transactions.map((t) =>
+      t.projectId === id ? { ...t, projectId: undefined } : t
+    )
+    data.finance.goals = data.finance.goals.map((g) =>
+      g.projectId === id ? { ...g, projectId: undefined } : g
     )
     return this.setAll(data)
   }

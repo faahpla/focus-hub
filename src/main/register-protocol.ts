@@ -10,6 +10,18 @@ import { join, normalize } from 'node:path'
 export const APP_SCHEME = 'app'
 export const APP_ORIGIN = 'app://local'
 
+/**
+ * Scheme for showing a file the user picked from their own disk (a goal cover,
+ * a receipt). The renderer runs on app://local, and Chromium blocks file://
+ * from any other origin, so images need a scheme of their own.
+ */
+export const MEDIA_SCHEME = 'localmedia'
+
+/** `localmedia://local/C:/Users/…/foto.png` for an absolute path. */
+export function toMediaUrl(absolutePath: string): string {
+  return `${MEDIA_SCHEME}://local/${encodeURI(absolutePath.replace(/\\/g, '/'))}`
+}
+
 const MIME: Record<string, string> = {
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -48,8 +60,29 @@ export function registerAppScheme(): void {
         corsEnabled: true,
         stream: true
       }
+    },
+    {
+      scheme: MEDIA_SCHEME,
+      // Deliberately no fetch/CORS support: these URLs are only ever meant to
+      // be rendered as <img src>, never read as bytes by page script.
+      privileges: { standard: true, secure: true, supportFetchAPI: false, corsEnabled: false }
     }
   ])
+}
+
+/** Serves images the user picked, by absolute path. Read-only, images only. */
+export function serveLocalMedia(): void {
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const { pathname } = new URL(request.url)
+    const full = normalize(decodeURIComponent(pathname).replace(/^\//, ''))
+    const mime = mimeFor(full)
+    if (!mime.startsWith('image/')) return new Response('Forbidden', { status: 403 })
+    try {
+      return new Response(await fs.readFile(full), { headers: { 'content-type': mime } })
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+  })
 }
 
 /** Wires the file server for app://local/*, called after app is ready. */

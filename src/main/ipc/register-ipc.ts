@@ -13,10 +13,31 @@ import type {
   Stats,
   Task
 } from '../../shared/types'
+import type {
+  BudgetPlan,
+  FinanceEntity,
+  FinanceEntityMap,
+  FinanceSettings
+} from '../../shared/finance'
 import type { Repository } from '../store/repository'
 import type { BackupService } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
 import type { WindowManager } from '../windows/window-manager'
+
+/** Human-readable names for the "backup taken before…" reason line. */
+const FINANCE_LABEL: Record<FinanceEntity, string> = {
+  accounts: 'conta',
+  cards: 'cartão',
+  categories: 'categoria',
+  transactions: 'transação',
+  recurring: 'recorrência',
+  goals: 'meta'
+}
+
+/** Quote a CSV cell only when it needs it. */
+function escapeCsv(value: string): string {
+  return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
 
 interface Deps {
   repo: Repository
@@ -108,6 +129,36 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
     return { ok: true, data: saved }
   })
   ipcMain.on(IPC.BACKUPS_OPEN_DIR, () => void shell.openPath(backups.folder))
+
+  // ---- Finance HUB ----
+  ipcMain.handle(
+    IPC.FINANCE_SAVE,
+    <K extends FinanceEntity>(_e: unknown, entity: K, items: FinanceEntityMap[K][]) =>
+      changed(repo.saveFinance(entity, items))
+  )
+  ipcMain.handle(IPC.FINANCE_DELETE, (_e, entity: FinanceEntity, id: string) =>
+    guard(`antes de excluir ${FINANCE_LABEL[entity]}`, () => changed(repo.deleteFinance(entity, id)))
+  )
+  ipcMain.handle(IPC.FINANCE_DELETE_MANY_TX, (_e, ids: string[]) =>
+    guard('antes de excluir transações', () => changed(repo.deleteTransactions(ids)))
+  )
+  ipcMain.handle(IPC.FINANCE_BUDGET_SAVE, (_e, plan: BudgetPlan) => changed(repo.saveBudget(plan)))
+  ipcMain.handle(IPC.FINANCE_SETTINGS_SAVE, (_e, s: FinanceSettings) =>
+    changed(repo.saveFinanceSettings(s))
+  )
+
+  ipcMain.handle(IPC.FINANCE_EXPORT_CSV, async (_e, rows: string[][]) => {
+    const res = await dialog.showSaveDialog({
+      title: 'Exportar transações',
+      defaultPath: `financas-${new Date().toISOString().slice(0, 10)}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (res.canceled || !res.filePath) return { ok: false }
+    // Semicolons + BOM so Excel in pt-BR opens it with the columns split.
+    const csv = rows.map((row) => row.map(escapeCsv).join(';')).join('\r\n')
+    await fs.writeFile(res.filePath, `﻿${csv}`, 'utf8')
+    return { ok: true, path: res.filePath }
+  })
 
   // ---- Flow ----
   ipcMain.handle(IPC.FLOW_APPLY, (_e, config: FlowConfig) => flow.apply(config))

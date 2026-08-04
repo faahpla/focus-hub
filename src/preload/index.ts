@@ -14,6 +14,7 @@ import type {
   Task,
   UpdateStatus
 } from '../shared/types'
+import type { BudgetPlan, FinanceEntity, FinanceSettings } from '../shared/finance'
 
 const api: FocusHubApi = {
   getAllData: () => ipcRenderer.invoke(IPC.DATA_GET_ALL),
@@ -37,6 +38,15 @@ const api: FocusHubApi = {
   listBackups: () => ipcRenderer.invoke(IPC.BACKUPS_LIST),
   restoreBackup: (file: string) => ipcRenderer.invoke(IPC.BACKUPS_RESTORE, file),
   openBackupsFolder: () => ipcRenderer.send(IPC.BACKUPS_OPEN_DIR),
+
+  saveFinance: (entity, items) =>
+    ipcRenderer.invoke(IPC.FINANCE_SAVE, entity, Array.isArray(items) ? items : [items]),
+  deleteFinance: (entity: FinanceEntity, id: string) =>
+    ipcRenderer.invoke(IPC.FINANCE_DELETE, entity, id),
+  deleteTransactions: (ids: string[]) => ipcRenderer.invoke(IPC.FINANCE_DELETE_MANY_TX, ids),
+  saveBudget: (plan: BudgetPlan) => ipcRenderer.invoke(IPC.FINANCE_BUDGET_SAVE, plan),
+  saveFinanceSettings: (s: FinanceSettings) => ipcRenderer.invoke(IPC.FINANCE_SETTINGS_SAVE, s),
+  exportTransactionsCsv: (rows: string[][]) => ipcRenderer.invoke(IPC.FINANCE_EXPORT_CSV, rows),
 
   applyFlow: (config: FlowConfig) => ipcRenderer.invoke(IPC.FLOW_APPLY, config),
   releaseFlow: () => ipcRenderer.invoke(IPC.FLOW_RELEASE),

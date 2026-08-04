@@ -3,6 +3,8 @@
  * React renderer. This is the single source of truth for the data contract.
  */
 
+import type { FinanceData } from './finance'
+
 export type ID = string
 
 export type ThemeName = 'dark' | 'oled' | 'graphite' | 'midnight'
@@ -84,6 +86,8 @@ export interface Project {
   description?: string
   defaultDurationMinutes: number
   defaultSound: AmbientSound
+  /** Optional spending budget for this project, in cents (Finance HUB). */
+  budget?: number
   flow: FlowConfig
   createdAt: string
   updatedAt: string
@@ -236,6 +240,7 @@ export interface AppData {
   sessions: Session[]
   stats: Stats
   settings: Settings
+  finance: FinanceData
 }
 
 /** One automatic snapshot of the whole app document. */
@@ -247,6 +252,7 @@ export interface BackupInfo {
   cards: number
   tasks: number
   ideas: number
+  transactions: number
 }
 
 export type UpdateState =

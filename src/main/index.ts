@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
-import { registerAppScheme, serveRenderer } from './register-protocol'
+import { registerAppScheme, serveLocalMedia, serveRenderer } from './register-protocol'
 import { BackupService } from './services/backup-service'
 import { FlowService } from './services/flow-service'
 import { UpdateService } from './services/update-service'
@@ -13,6 +13,19 @@ import appIcon from '../../resources/icon.png?asset'
 
 // Must run before the app "ready" event.
 registerAppScheme()
+
+/**
+ * Run against an isolated data folder when FOCUS_HUB_PROFILE is set.
+ *
+ * Development and automated checks must never write to the same
+ * focus-hub-data.json the installed app uses — one bad test run should not be
+ * able to touch real notes. Must happen before the Repository is constructed,
+ * since electron-store resolves userData at construction time.
+ */
+const profile = process.env['FOCUS_HUB_PROFILE']
+if (profile && !app.isPackaged) {
+  app.setPath('userData', join(app.getPath('appData'), `focus-hub-${profile}`))
+}
 
 const repo = new Repository()
 const flow = new FlowService()
@@ -114,6 +127,9 @@ if (!gotLock) {
     // Serve the built renderer over app://local/* whenever we're not using the
     // Vite dev server (covers the packaged app and the built output directly).
     if (!process.env['ELECTRON_RENDERER_URL']) serveRenderer(join(__dirname, '../renderer'))
+
+    // Images the user picked (goal covers) — see register-protocol for why.
+    serveLocalMedia()
 
     // Rolling snapshots: one at startup, then every 10 minutes while the app
     // is open (no-ops when nothing changed), plus one on the way out.

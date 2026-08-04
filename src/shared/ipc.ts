@@ -18,6 +18,12 @@ import type {
   Task,
   UpdateStatus
 } from './types'
+import type {
+  BudgetPlan,
+  FinanceEntity,
+  FinanceEntityMap,
+  FinanceSettings
+} from './finance'
 
 export const IPC = {
   // Data / persistence
@@ -42,6 +48,14 @@ export const IPC = {
   BACKUPS_LIST: 'backups:list',
   BACKUPS_RESTORE: 'backups:restore',
   BACKUPS_OPEN_DIR: 'backups:openDir',
+
+  // Finance HUB — one generic path per operation, addressed by entity name.
+  FINANCE_SAVE: 'finance:save',
+  FINANCE_DELETE: 'finance:delete',
+  FINANCE_DELETE_MANY_TX: 'finance:deleteTransactions',
+  FINANCE_BUDGET_SAVE: 'finance:saveBudget',
+  FINANCE_SETTINGS_SAVE: 'finance:saveSettings',
+  FINANCE_EXPORT_CSV: 'finance:exportCsv',
 
   // Flow / OS integration
   FLOW_APPLY: 'flow:apply',
@@ -97,6 +111,19 @@ export interface FocusHubApi {
   listBackups(): Promise<BackupInfo[]>
   restoreBackup(file: string): Promise<{ ok: boolean; data?: AppData }>
   openBackupsFolder(): void
+
+  /** Upsert one or many rows of a finance collection. */
+  saveFinance<K extends FinanceEntity>(
+    entity: K,
+    items: FinanceEntityMap[K] | FinanceEntityMap[K][]
+  ): Promise<AppData>
+  deleteFinance(entity: FinanceEntity, id: string): Promise<AppData>
+  /** Remove several transactions in one write (a whole installment group). */
+  deleteTransactions(ids: string[]): Promise<AppData>
+  saveBudget(plan: BudgetPlan): Promise<AppData>
+  saveFinanceSettings(settings: FinanceSettings): Promise<AppData>
+  /** Write the given rows to a .csv the user picks. */
+  exportTransactionsCsv(rows: string[][]): Promise<{ ok: boolean; path?: string }>
 
   applyFlow(config: FlowConfig): Promise<FlowApplyResult>
   releaseFlow(): Promise<void>
