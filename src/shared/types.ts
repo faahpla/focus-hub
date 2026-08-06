@@ -183,6 +183,12 @@ export interface BoardCard {
   title: string
   /** The long-form body — the script itself. Read in "Modo leitura". */
   notes?: string
+  /**
+   * Publish-ready title, kept apart from the card's own name. The card is
+   * titled for finding it on the board; this is the one that gets copied into
+   * YouTube, and the two are rarely the same string.
+   */
+  publishTitle?: string
   /** Publish-ready description, kept apart from the script for easy copying. */
   description?: string
   /** Publish-ready hashtags, stored verbatim so copy/paste round-trips. */
@@ -197,7 +203,16 @@ export interface BoardCard {
    * documents migrate cleanly and is no longer written to.
    */
   taskId?: ID
-  dueDate?: string // ISO
+  /**
+   * Delivery date. Doubles as the day the card itself shows up on the planner
+   * — one date instead of a separate "due" and "scheduled" pair, which for a
+   * deliverable are the same thing.
+   */
+  dueDate?: string // YYYY-MM-DD
+  /** HH:mm it is due. Places the card as a block on the agenda timeline. */
+  dueTime?: string
+  /** Length of that block, in minutes. Defaults to an hour. */
+  durationMinutes?: number
   createdAt: string
   updatedAt: string
   order: number

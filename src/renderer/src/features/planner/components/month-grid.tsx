@@ -5,7 +5,7 @@ import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
 import { isChecked } from '@shared/planner'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { type DayKey, WEEKDAY_NAMES_MONDAY, monthGrid, today } from '@/lib/dates'
 import { cardUsage } from '@/features/finance/services/finance-engine'
 import type { AgendaLayers } from '@/stores/planner-ui-store'
@@ -15,10 +15,11 @@ interface Chip {
   id: string
   label: string
   color: string
-  kind: 'task' | 'event' | 'finance'
+  kind: 'task' | 'event' | 'finance' | 'card'
   done?: boolean
   task?: Task
   event?: CalendarEvent
+  card?: BoardCard
 }
 
 /** The month at a glance. Dragging a task here changes its day, not its time. */
@@ -27,16 +28,20 @@ export function MonthGrid({
   layers,
   onOpenTask,
   onOpenEvent,
+  onOpenCard,
   onPickDay
 }: {
   month: string
   layers: AgendaLayers
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
+  onOpenCard?: (card: BoardCard) => void
   onPickDay: (day: DayKey) => void
 }): JSX.Element {
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
+  const cards = useAppStore((s) => s.cards)
+  const boards = useAppStore((s) => s.boards)
   const habits = useAppStore((s) => s.habits)
   const finance = useAppStore((s) => s.finance)
   const saveTask = useAppStore((s) => s.saveTask)
@@ -62,6 +67,19 @@ export function MonthGrid({
           kind: 'task',
           done: task.status === 'done',
           task
+        })
+      }
+    }
+    if (layers.cards) {
+      for (const card of cards) {
+        if (!card.dueDate) continue
+        const board = boards.find((b) => b.id === card.boardId)
+        push(card.dueDate, {
+          id: `card-${card.id}`,
+          label: card.dueTime ? `${card.dueTime} ${card.title}` : card.title,
+          color: board?.color ?? '270 80% 66%',
+          kind: 'card',
+          card
         })
       }
     }
@@ -99,7 +117,7 @@ export function MonthGrid({
       }
     }
     return map
-  }, [tasks, events, finance, layers])
+  }, [tasks, events, cards, boards, finance, layers])
 
   const habitLoad = useMemo(() => {
     if (!layers.habits) return new Map<DayKey, { done: number; due: number }>()
@@ -146,6 +164,7 @@ export function MonthGrid({
             habits={habitLoad.get(day)}
             onOpenTask={onOpenTask}
             onOpenEvent={onOpenEvent}
+            onOpenCard={onOpenCard}
             onPickDay={onPickDay}
           />
         ))}
@@ -161,6 +180,7 @@ function MonthCell({
   habits,
   onOpenTask,
   onOpenEvent,
+  onOpenCard,
   onPickDay
 }: {
   day: DayKey
@@ -169,6 +189,7 @@ function MonthCell({
   habits?: { done: number; due: number }
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
+  onOpenCard?: (card: BoardCard) => void
   onPickDay: (day: DayKey) => void
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: `m-${day}` })
@@ -219,7 +240,10 @@ function MonthCell({
           ) : (
             <button
               key={chip.id}
-              onClick={() => chip.event && onOpenEvent(chip.event)}
+              onClick={() => {
+                if (chip.event) onOpenEvent(chip.event)
+                else if (chip.card) onOpenCard?.(chip.card)
+              }}
               className="no-drag flex items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[10px]"
               style={{ background: `hsl(${chip.color} / 0.14)`, color: `hsl(${chip.color})` }}
             >

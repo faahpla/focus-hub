@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { CircleDollarSign } from 'lucide-react'
+import { CircleDollarSign, KanbanSquare } from 'lucide-react'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { type DayKey, addDaysToKey, daysBetween, relativeDayLabel, today } from '@/lib/dates'
 import { formatMoney } from '@/features/finance/utils/money'
 import { cardUsage } from '@/features/finance/services/finance-engine'
@@ -15,10 +15,11 @@ import { TaskRow } from './task-row'
 const HORIZON_DAYS = 30
 
 interface Entry {
-  kind: 'task' | 'event' | 'finance'
+  kind: 'task' | 'event' | 'finance' | 'card'
   sort: string
   task?: Task
   event?: CalendarEvent
+  card?: BoardCard
   finance?: { label: string; amount: number; income: boolean }
 }
 
@@ -30,15 +31,18 @@ export function AgendaList({
   day,
   layers,
   onOpenTask,
-  onOpenEvent
+  onOpenEvent,
+  onOpenCard
 }: {
   day: DayKey
   layers: AgendaLayers
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
+  onOpenCard?: (card: BoardCard) => void
 }): JSX.Element {
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
+  const cards = useAppStore((s) => s.cards)
   const finance = useAppStore((s) => s.finance)
 
   const groups = useMemo(() => {
@@ -56,6 +60,12 @@ export function AgendaList({
       for (const task of tasks) {
         if (!task.scheduledDate || task.status === 'done') continue
         push(task.scheduledDate, { kind: 'task', sort: task.startTime ?? '99:99', task })
+      }
+    }
+    if (layers.cards) {
+      for (const card of cards) {
+        if (!card.dueDate) continue
+        push(card.dueDate, { kind: 'card', sort: card.dueTime ?? '97:00', card })
       }
     }
     if (layers.events) {
@@ -94,7 +104,7 @@ export function AgendaList({
         day: d,
         entries: (map.get(d) ?? []).sort((a, b) => a.sort.localeCompare(b.sort))
       }))
-  }, [tasks, events, finance, layers, day])
+  }, [tasks, events, cards, finance, layers, day])
 
   if (groups.length === 0) {
     return (
@@ -151,6 +161,27 @@ export function AgendaList({
                     </div>
                     <span className="shrink-0 text-xs tabular text-muted-foreground">
                       {event.allDay ? 'dia todo' : `${event.startTime}–${event.endTime}`}
+                    </span>
+                  </button>
+                )
+              }
+              if (entry.card) {
+                const card = entry.card
+                return (
+                  <button
+                    key={card.id}
+                    onClick={() => onOpenCard?.(card)}
+                    className="no-drag flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <KanbanSquare className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{card.title}</p>
+                      <p className="text-[11px] text-muted-foreground">Entrega</p>
+                    </div>
+                    <span className="shrink-0 text-xs tabular text-muted-foreground">
+                      {card.dueTime ?? 'sem hora'}
                     </span>
                   </button>
                 )

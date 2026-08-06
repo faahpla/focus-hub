@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import {
+  CalendarPlus,
   Check,
   ChevronDown,
   Copy,
@@ -30,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
+import { dayLabel, today } from '@/lib/dates'
 import { CardTasksPanel } from '@/features/planner/components/card-tasks-panel'
 import { useAppStore } from '@/stores/app-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
@@ -126,6 +128,9 @@ function CardEditor({
   })
   const [notes, setNotes] = useAutosavedText(card.notes ?? '', (next) =>
     patch({ notes: next })
+  )
+  const [publishTitle, setPublishTitle] = useAutosavedText(card.publishTitle ?? '', (next) =>
+    patch({ publishTitle: next })
   )
   const [description, setDescription] = useAutosavedText(card.description ?? '', (next) =>
     patch({ description: next })
@@ -286,6 +291,35 @@ function CardEditor({
               {/* Tasks — a card is a deliverable made of several steps. */}
               <CardTasksPanel card={card} board={board} onClose={onClose} />
 
+              {/* Publish title — separate from the card's own name, which is
+                  written to find it on the board, not to go on the video. */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título
+                    <span className="text-[11px] font-normal text-muted-foreground">
+                      opcional
+                    </span>
+                  </p>
+                  <CopyButton value={publishTitle} />
+                </div>
+                <textarea
+                  value={publishTitle}
+                  onChange={(e) => setPublishTitle(e.target.value)}
+                  onBlur={() =>
+                    publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
+                  }
+                  placeholder="O título que vai no vídeo…"
+                  rows={2}
+                  className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+                {publishTitle.trim() && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {publishTitle.trim().length} caracteres
+                  </p>
+                )}
+              </div>
+
               {/* Description */}
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -375,13 +409,49 @@ function CardEditor({
                 </div>
               </div>
 
-              {/* Due date */}
+              {/* Delivery — the card's own slot on the planner, not its tasks'. */}
               <div>
-                <p className="mb-1.5 text-sm font-medium">Prazo</p>
-                <DatePicker
-                  value={card.dueDate}
-                  onChange={(next) => patch({ dueDate: next })}
-                />
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Entrega</p>
+                  <button
+                    onClick={() => patch({ dueDate: today() })}
+                    className="no-drag flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                    title="Coloca este card no seu dia de hoje"
+                  >
+                    <CalendarPlus className="h-3 w-3" /> Enviar para hoje
+                  </button>
+                </div>
+                <DatePicker value={card.dueDate} onChange={(next) => patch({ dueDate: next })} />
+
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={card.dueTime ?? ''}
+                    disabled={!card.dueDate}
+                    onChange={(e) => patch({ dueTime: e.target.value || undefined })}
+                    className="no-drag h-9 flex-1 rounded-xl border border-input bg-surface/60 px-3 text-sm tabular focus:border-primary/60 focus:outline-none disabled:opacity-40"
+                  />
+                  <select
+                    value={card.durationMinutes ?? 60}
+                    disabled={!card.dueDate}
+                    onChange={(e) => patch({ durationMinutes: Number(e.target.value) })}
+                    className="no-drag h-9 rounded-xl border border-input bg-surface/60 px-2 text-xs focus:border-primary/60 focus:outline-none disabled:opacity-40"
+                  >
+                    {[30, 60, 90, 120, 180, 240].map((m) => (
+                      <option key={m} value={m}>
+                        {m < 60 ? `${m}min` : `${m / 60}h`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  {card.dueDate
+                    ? card.dueTime
+                      ? `Aparece na Agenda em ${dayLabel(card.dueDate)} às ${card.dueTime}.`
+                      : `Aparece na Agenda em ${dayLabel(card.dueDate)}. Defina a hora para virar um bloco no horário.`
+                    : 'Sem data o card não aparece na Agenda.'}
+                </p>
               </div>
 
               {/* Tags */}

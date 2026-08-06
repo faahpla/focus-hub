@@ -6,6 +6,8 @@ export type AgendaView = 'day' | 'week' | 'month' | 'list'
 /** Which kinds of thing the calendar draws. All on by default. */
 export interface AgendaLayers {
   tasks: boolean
+  /** Board cards — the deliverables themselves, not their tasks. */
+  cards: boolean
   events: boolean
   habits: boolean
   finance: boolean
@@ -37,7 +39,7 @@ function shiftDay(day: string, delta: number): string {
 export const usePlannerUi = create<PlannerUiState>((set) => ({
   day: today(),
   view: 'week',
-  layers: { tasks: true, events: true, habits: true, finance: true },
+  layers: { tasks: true, cards: true, events: true, habits: true, finance: true },
 
   setDay: (day) => set({ day }),
   stepDay: (delta) => set((s) => ({ day: shiftDay(s.day, delta) })),

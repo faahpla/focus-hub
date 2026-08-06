@@ -9,6 +9,7 @@ import {
   Flame,
   Inbox,
   Plus,
+  KanbanSquare,
   Sparkles,
   Target
 } from 'lucide-react'
@@ -22,8 +23,9 @@ import { useToastStore } from '@/stores/toast-store'
 import { usePlannerUi } from '@/stores/planner-ui-store'
 import { useSessionStore } from '@/stores/session-store'
 import { uid } from '@/lib/utils'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
+import { CardDetailDialog } from '@/features/boards/card-detail-dialog'
 import { HomeFinanceCard } from '@/features/finance/components/home-finance-card'
 import { NowBar } from '../components/now-bar'
 import { CapacityBar } from '../components/capacity-bar'
@@ -61,7 +63,10 @@ export function TodayPage(): JSX.Element {
   const setDay = usePlannerUi((s) => s.setDay)
   const session = useSessionStore()
 
+  const cards = useAppStore((s) => s.cards)
+  const boards = useAppStore((s) => s.boards)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [openCard, setOpenCard] = useState<BoardCard | null>(null)
   const [draft, setDraft] = useState('')
 
   useRollover()
@@ -79,6 +84,16 @@ export function TodayPage(): JSX.Element {
     () => events.filter((e) => e.date === day).sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [events, day]
   )
+
+  // Cards delivering today — the deliverable itself, not just its steps.
+  const dayCards = useMemo(
+    () =>
+      cards
+        .filter((c) => c.dueDate === day)
+        .sort((a, b) => (a.dueTime ?? '99:99').localeCompare(b.dueTime ?? '99:99')),
+    [cards, day]
+  )
+  const openCardBoard = openCard ? boards.find((b) => b.id === openCard.boardId) : undefined
 
   const goal = useMemo(() => leadGoal(data, day), [data, day])
   const goalStats = goal ? goalProgress(goal, data, day) : undefined
@@ -152,6 +167,7 @@ export function TodayPage(): JSX.Element {
                 {pending.length === 0
                   ? 'nada pendente'
                   : `${pending.length} pendente${pending.length === 1 ? '' : 's'}`}
+                {dayCards.length > 0 && ` · ${dayCards.length} entrega(s)`}
                 {todayEvents.length > 0 && ` · ${todayEvents.length} compromisso(s)`}
               </p>
             </div>
@@ -240,6 +256,47 @@ export function TodayPage(): JSX.Element {
                   </AnimatePresence>
                 )}
               </Card>
+
+              {/* Cards delivering today */}
+              {dayCards.length > 0 && (
+                <Card className="p-4">
+                  <div className="mb-2 flex items-center gap-2 px-1">
+                    <KanbanSquare className="h-3.5 w-3.5 text-primary" />
+                    <h3 className="text-xs font-semibold text-muted-foreground">
+                      Entregas de hoje
+                    </h3>
+                  </div>
+                  <div className="space-y-1">
+                    {dayCards.map((card) => {
+                      const board = boards.find((b) => b.id === card.boardId)
+                      const steps = tasks.filter((t) => t.cardId === card.id)
+                      const stepsDone = steps.filter((t) => t.status === 'done').length
+                      return (
+                        <button
+                          key={card.id}
+                          onClick={() => setOpenCard(card)}
+                          className="no-drag flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+                        >
+                          <span
+                            className="h-8 w-[3px] shrink-0 rounded-full"
+                            style={{ background: `hsl(${board?.color ?? '270 80% 66%'})` }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{card.title}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {board?.name ?? 'Quadro'}
+                              {steps.length > 0 && ` · ${stepsDone}/${steps.length} etapas`}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-xs tabular text-muted-foreground">
+                            {card.dueTime ?? 'sem hora'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
 
               {/* Events */}
               {todayEvents.length > 0 && (
@@ -358,6 +415,13 @@ export function TodayPage(): JSX.Element {
 
       {openTaskId && (
         <TaskDetailDialog taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
+      )}
+      {openCard && openCardBoard && (
+        <CardDetailDialog
+          cardId={openCard.id}
+          board={openCardBoard}
+          onClose={() => setOpenCard(null)}
+        />
       )}
     </div>
   )

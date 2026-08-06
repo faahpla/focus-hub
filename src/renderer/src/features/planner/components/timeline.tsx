@@ -16,7 +16,7 @@ import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { type DayKey, dayLabel, today, weekdayLabel } from '@/lib/dates'
 import { fromMinutes, nowMinutes, toMinutes } from '../utils/time'
 import { taskDuration } from '../services/scheduler'
@@ -29,7 +29,7 @@ const SNAP_MINUTES = 15
 const GUTTER = 52
 
 interface Block {
-  kind: 'task' | 'event'
+  kind: 'task' | 'event' | 'card'
   id: string
   day: DayKey
   start: number
@@ -38,6 +38,7 @@ interface Block {
   color: string
   task?: Task
   event?: CalendarEvent
+  card?: BoardCard
   locked?: boolean
 }
 
@@ -54,16 +55,21 @@ export function Timeline({
   layers,
   onOpenTask,
   onOpenEvent,
+  onOpenCard,
   onCreate
 }: {
   days: DayKey[]
   layers: AgendaLayers
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
+  onOpenCard?: (card: BoardCard) => void
   onCreate?: (day: DayKey, startTime: string) => void
 }): JSX.Element {
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
+  const cards = useAppStore((s) => s.cards)
+  const boards = useAppStore((s) => s.boards)
+  const saveCard = useAppStore((s) => s.saveCard)
   const settings = useAppStore((s) => s.planner)
   const saveTask = useAppStore((s) => s.saveTask)
   const savePlanner = useAppStore((s) => s.savePlanner)
@@ -85,8 +91,13 @@ export function Timeline({
       start = Math.min(start, toMinutes(event.startTime))
       end = Math.max(end, toMinutes(event.endTime))
     }
+    for (const card of cards) {
+      if (!card.dueDate || !days.includes(card.dueDate) || !card.dueTime) continue
+      start = Math.min(start, toMinutes(card.dueTime))
+      end = Math.max(end, toMinutes(card.dueTime) + (card.durationMinutes ?? 60))
+    }
     return { from: Math.floor(start / 60) * 60, to: Math.ceil(end / 60) * 60 }
-  }, [tasks, events, days, settings])
+  }, [tasks, events, cards, days, settings])
 
   const height = Math.max(240, (to - from) * PX_PER_MINUTE)
 
@@ -124,8 +135,25 @@ export function Timeline({
         })
       }
     }
+    if (layers.cards) {
+      for (const card of cards) {
+        if (!card.dueDate || !days.includes(card.dueDate) || !card.dueTime) continue
+        const board = boards.find((b) => b.id === card.boardId)
+        const start = toMinutes(card.dueTime)
+        out.push({
+          kind: 'card',
+          id: card.id,
+          day: card.dueDate,
+          start,
+          end: start + (card.durationMinutes ?? 60),
+          title: card.title,
+          color: board?.color ?? '270 80% 66%',
+          card
+        })
+      }
+    }
     return out
-  }, [tasks, events, days, layers, settings])
+  }, [tasks, events, cards, boards, days, layers, settings])
 
   const onDragEnd = (e: DragEndEvent): void => {
     setDragging(null)
@@ -146,6 +174,13 @@ export function Timeline({
         startTime: fromMinutes(start),
         // Moving something by hand is a decision — auto-planning respects it.
         pinned: true,
+        updatedAt: new Date().toISOString()
+      })
+    } else if (block.card) {
+      void saveCard({
+        ...block.card,
+        dueDate: targetDay,
+        dueTime: fromMinutes(start),
         updatedAt: new Date().toISOString()
       })
     } else if (block.event) {
@@ -198,9 +233,15 @@ export function Timeline({
               height={height}
               hours={hours}
               blocks={blocks.filter((b) => b.day === day)}
+              untimedCards={
+                layers.cards
+                  ? cards.filter((c) => c.dueDate === day && !c.dueTime)
+                  : []
+              }
               single={days.length === 1}
               onOpenTask={onOpenTask}
               onOpenEvent={onOpenEvent}
+              onOpenCard={onOpenCard}
               onCreate={onCreate}
             />
           ))}
@@ -233,9 +274,11 @@ function DayColumn({
   height,
   hours,
   blocks,
+  untimedCards,
   single,
   onOpenTask,
   onOpenEvent,
+  onOpenCard,
   onCreate
 }: {
   day: DayKey
@@ -244,9 +287,11 @@ function DayColumn({
   height: number
   hours: number[]
   blocks: Block[]
+  untimedCards: BoardCard[]
   single: boolean
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
+  onOpenCard?: (card: BoardCard) => void
   onCreate?: (day: DayKey, startTime: string) => void
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${day}` })
@@ -265,6 +310,22 @@ function DayColumn({
         {!single && <span>{weekdayLabel(day)}</span>}
         <span className="tabular">{dayLabel(day)}</span>
       </div>
+
+      {/* Cards due this day with no set hour — they still belong to the day. */}
+      {untimedCards.length > 0 && (
+        <div className="mb-1 space-y-0.5 px-0.5">
+          {untimedCards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => onOpenCard?.(card)}
+              className="no-drag block w-full truncate rounded-md border border-dashed border-primary/40 bg-primary/[0.07] px-1.5 py-0.5 text-left text-[10px] text-primary"
+              title={`${card.title} · sem horário definido`}
+            >
+              {card.title}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         ref={setNodeRef}
@@ -303,9 +364,11 @@ function DayColumn({
             block={block}
             from={from}
             lane={lanes.get(block.id) ?? { index: 0, total: 1 }}
-            onOpen={() =>
-              block.task ? onOpenTask(block.task) : block.event && onOpenEvent(block.event)
-            }
+            onOpen={() => {
+              if (block.task) onOpenTask(block.task)
+              else if (block.event) onOpenEvent(block.event)
+              else if (block.card) onOpenCard?.(block.card)
+            }}
           />
         ))}
       </div>

@@ -9,6 +9,7 @@ import {
   Plus,
   Repeat,
   Sparkles,
+  KanbanSquare,
   SquareCheck
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -18,8 +19,9 @@ import { useToastStore } from '@/stores/toast-store'
 import { usePlannerUi, type AgendaLayers, type AgendaView } from '@/stores/planner-ui-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
+import { CardDetailDialog } from '@/features/boards/card-detail-dialog'
 import { Timeline } from '../components/timeline'
 import { MonthGrid } from '../components/month-grid'
 import { AgendaList } from '../components/agenda-list'
@@ -46,6 +48,7 @@ const VIEWS: { id: AgendaView; label: string }[] = [
 
 const LAYERS: { id: keyof AgendaLayers; label: string; icon: React.ElementType }[] = [
   { id: 'tasks', label: 'Tarefas', icon: SquareCheck },
+  { id: 'cards', label: 'Cards dos quadros', icon: KanbanSquare },
   { id: 'events', label: 'Compromissos', icon: CalendarDays },
   { id: 'habits', label: 'Hábitos', icon: Repeat },
   { id: 'finance', label: 'Financeiro', icon: CircleDollarSign }
@@ -67,7 +70,9 @@ export function AgendaPage(): JSX.Element {
   const saveTasks = useAppStore((s) => s.saveTasks)
   const pushToast = useToastStore((s) => s.push)
 
+  const boards = useAppStore((s) => s.boards)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [openCard, setOpenCard] = useState<BoardCard | null>(null)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [creating, setCreating] = useState<{ day: string; start?: string } | null>(null)
   const [showLayers, setShowLayers] = useState(false)
@@ -114,6 +119,7 @@ export function AgendaPage(): JSX.Element {
   }
 
   const openTask = (task: Task): void => setOpenTaskId(task.id)
+  const openCardBoard = openCard ? boards.find((b) => b.id === openCard.boardId) : undefined
 
   return (
     <div className="flex h-full flex-col">
@@ -225,13 +231,20 @@ export function AgendaPage(): JSX.Element {
             layers={layers}
             onOpenTask={openTask}
             onOpenEvent={setEditingEvent}
+            onOpenCard={setOpenCard}
             onPickDay={(picked) => {
               setDay(picked)
               setView('day')
             }}
           />
         ) : view === 'list' ? (
-          <AgendaList day={day} layers={layers} onOpenTask={openTask} onOpenEvent={setEditingEvent} />
+          <AgendaList
+            day={day}
+            layers={layers}
+            onOpenTask={openTask}
+            onOpenEvent={setEditingEvent}
+            onOpenCard={setOpenCard}
+          />
         ) : (
           <Card className="overflow-hidden p-3">
             <Timeline
@@ -239,6 +252,7 @@ export function AgendaPage(): JSX.Element {
               layers={layers}
               onOpenTask={openTask}
               onOpenEvent={setEditingEvent}
+              onOpenCard={setOpenCard}
               onCreate={(pickedDay, start) => setCreating({ day: pickedDay, start })}
             />
             <p className="px-2 pt-2 text-[11px] text-muted-foreground">
@@ -250,6 +264,13 @@ export function AgendaPage(): JSX.Element {
       </div>
 
       {openTaskId && <TaskDetailDialog taskId={openTaskId} onClose={() => setOpenTaskId(null)} />}
+      {openCard && openCardBoard && (
+        <CardDetailDialog
+          cardId={openCard.id}
+          board={openCardBoard}
+          onClose={() => setOpenCard(null)}
+        />
+      )}
       {editingEvent && (
         <EventDialog event={editingEvent} onClose={() => setEditingEvent(null)} />
       )}
