@@ -11,13 +11,13 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { useState } from 'react'
-import { Lock, MapPin } from 'lucide-react'
+import { KanbanSquare, Lock, MapPin } from 'lucide-react'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
 import type { BoardCard, Task } from '@shared/types'
-import { type DayKey, dayLabel, today, weekdayLabel } from '@/lib/dates'
+import { type DayKey, dayLabel, parseLocal, today, weekdayLabel } from '@/lib/dates'
 import { fromMinutes, nowMinutes, toMinutes } from '../utils/time'
 import { taskDuration } from '../services/scheduler'
 import type { AgendaLayers } from '@/stores/planner-ui-store'
@@ -198,6 +198,9 @@ export function Timeline({
   }
 
   const hours = Array.from({ length: Math.ceil((to - from) / 60) + 1 }, (_, i) => from + i * 60)
+  const untimedByDay = days.map((day) =>
+    layers.cards ? cards.filter((c) => c.dueDate === day && !c.dueTime) : []
+  )
 
   return (
     <DndContext
@@ -208,46 +211,86 @@ export function Timeline({
       onDragEnd={onDragEnd}
       onDragCancel={() => setDragging(null)}
     >
-      <div className="flex">
-        {/* Hour gutter */}
-        <div className="shrink-0" style={{ width: GUTTER }}>
-          <div className="h-8" />
-          <div className="relative" style={{ height }}>
+      <div className="overflow-hidden rounded-xl border border-border/60">
+        {/* Day headers — one row, so every column starts at the same height. */}
+        <div className="flex border-b border-border/60 bg-surface/40">
+          <div className="shrink-0" style={{ width: GUTTER }} />
+          {days.map((day) => (
+            <DayHeader key={day} day={day} single={days.length === 1} />
+          ))}
+        </div>
+
+        {/*
+          All-day strip. This used to live inside each column, which pushed the
+          grid down only on the days that had something — and the hour lines
+          stopped matching across the week. One shared row keeps them aligned.
+        */}
+        {untimedByDay.some((list) => list.length > 0) && (
+          <div className="flex border-b border-border/60 bg-surface/20">
+            <div
+              className="shrink-0 py-1.5 pr-2 text-right text-[10px] leading-tight text-muted-foreground"
+              style={{ width: GUTTER }}
+            >
+              sem
+              <br />
+              hora
+            </div>
+            {days.map((day, i) => (
+              <div
+                key={day}
+                className={cn(
+                  'min-w-0 flex-1 space-y-1 border-l border-border/40 p-1.5',
+                  day === today() && 'bg-primary/[0.04]'
+                )}
+              >
+                {untimedByDay[i].map((card) => (
+                  <button
+                    key={card.id}
+                    onClick={() => onOpenCard?.(card)}
+                    className="no-drag block w-full truncate rounded-md bg-primary/15 px-1.5 py-1 text-left text-[10px] font-medium text-primary transition-colors hover:bg-primary/25"
+                    title={`${card.title} · entrega sem horário definido`}
+                  >
+                    {card.title}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Grid */}
+        <div className="flex">
+          <div className="relative shrink-0" style={{ width: GUTTER, height }}>
             {hours.map((minute) => (
               <span
                 key={minute}
-                className="absolute right-2 -translate-y-1/2 text-[10px] tabular text-muted-foreground"
-                style={{ top: (minute - from) * PX_PER_MINUTE }}
+                className="absolute right-2 text-[10px] tabular leading-none text-muted-foreground"
+                // Sitting just under its line keeps the first label from being
+                // clipped by the row above.
+                style={{ top: (minute - from) * PX_PER_MINUTE + 3 }}
               >
                 {fromMinutes(minute)}
               </span>
             ))}
           </div>
-        </div>
 
-        {/* Day columns */}
-        <div className="flex min-w-0 flex-1">
-          {days.map((day) => (
-            <DayColumn
-              key={day}
-              day={day}
-              from={from}
-              to={to}
-              height={height}
-              hours={hours}
-              blocks={blocks.filter((b) => b.day === day)}
-              untimedCards={
-                layers.cards
-                  ? cards.filter((c) => c.dueDate === day && !c.dueTime)
-                  : []
-              }
-              single={days.length === 1}
-              onOpenTask={onOpenTask}
-              onOpenEvent={onOpenEvent}
-              onOpenCard={onOpenCard}
-              onCreate={onCreate}
-            />
-          ))}
+          <div className="flex min-w-0 flex-1">
+            {days.map((day) => (
+              <DayColumn
+                key={day}
+                day={day}
+                from={from}
+                to={to}
+                height={height}
+                hours={hours}
+                blocks={blocks.filter((b) => b.day === day)}
+                onOpenTask={onOpenTask}
+                onOpenEvent={onOpenEvent}
+                onOpenCard={onOpenCard}
+                onCreate={onCreate}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -270,6 +313,41 @@ export function Timeline({
   )
 }
 
+/** Weekday + day number. Today gets a pill so the eye lands on it first. */
+function DayHeader({ day, single }: { day: DayKey; single: boolean }): JSX.Element {
+  const isToday = day === today()
+  const weekend = [0, 6].includes(parseLocal(day).getDay())
+
+  return (
+    <div
+      className={cn(
+        'min-w-0 flex-1 border-l border-border/40 py-2 text-center',
+        weekend && 'bg-muted/[0.15]',
+        isToday && 'bg-primary/[0.06]'
+      )}
+    >
+      {!single && (
+        <div
+          className={cn(
+            'text-[10px] uppercase tracking-wide',
+            isToday ? 'text-primary' : 'text-muted-foreground'
+          )}
+        >
+          {weekdayLabel(day)}
+        </div>
+      )}
+      <div
+        className={cn(
+          'mx-auto mt-0.5 w-fit rounded-md px-1.5 text-sm tabular',
+          isToday ? 'bg-primary font-semibold text-primary-foreground' : 'text-foreground'
+        )}
+      >
+        {single ? dayLabel(day) : Number(day.slice(8))}
+      </div>
+    </div>
+  )
+}
+
 function DayColumn({
   day,
   from,
@@ -277,8 +355,6 @@ function DayColumn({
   height,
   hours,
   blocks,
-  untimedCards,
-  single,
   onOpenTask,
   onOpenEvent,
   onOpenCard,
@@ -290,8 +366,6 @@ function DayColumn({
   height: number
   hours: number[]
   blocks: Block[]
-  untimedCards: BoardCard[]
-  single: boolean
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: CalendarEvent) => void
   onOpenCard?: (card: BoardCard) => void
@@ -299,82 +373,66 @@ function DayColumn({
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${day}` })
   const isToday = day === today()
+  const weekend = [0, 6].includes(parseLocal(day).getDay())
   const now = nowMinutes()
   const lanes = assignLanes(blocks)
 
   return (
-    <div className="min-w-0 flex-1 border-l border-border/50">
-      <div
-        className={cn(
-          'flex h-8 items-center justify-center gap-1.5 text-xs',
-          isToday ? 'font-semibold text-primary' : 'text-muted-foreground'
-        )}
-      >
-        {!single && <span>{weekdayLabel(day)}</span>}
-        <span className="tabular">{dayLabel(day)}</span>
-      </div>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'relative min-w-0 flex-1 border-l border-border/40 transition-colors',
+        weekend && 'bg-muted/[0.12]',
+        isToday && 'bg-primary/[0.03]',
+        isOver && 'bg-primary/[0.08]'
+      )}
+      style={{ height }}
+      onDoubleClick={(e) => {
+        if (!onCreate) return
+        const box = e.currentTarget.getBoundingClientRect()
+        const minute = from + Math.round((e.clientY - box.top) / PX_PER_MINUTE / 30) * 30
+        onCreate(day, fromMinutes(minute))
+      }}
+    >
+      {/* Hour lines. The half-hour is fainter, so the eye reads whole hours. */}
+      {hours.map((minute) => (
+        <div key={minute}>
+          <div
+            className="pointer-events-none absolute left-0 right-0 border-t border-border/40"
+            style={{ top: (minute - from) * PX_PER_MINUTE }}
+          />
+          {minute + 30 <= to && (
+            <div
+              className="pointer-events-none absolute left-0 right-0 border-t border-border/15"
+              style={{ top: (minute - from + 30) * PX_PER_MINUTE }}
+            />
+          )}
+        </div>
+      ))}
 
-      {/* Cards due this day with no set hour — they still belong to the day. */}
-      {untimedCards.length > 0 && (
-        <div className="mb-1 space-y-0.5 px-0.5">
-          {untimedCards.map((card) => (
-            <button
-              key={card.id}
-              onClick={() => onOpenCard?.(card)}
-              className="no-drag block w-full truncate rounded-md border border-dashed border-primary/40 bg-primary/[0.07] px-1.5 py-0.5 text-left text-[10px] text-primary"
-              title={`${card.title} · sem horário definido`}
-            >
-              {card.title}
-            </button>
-          ))}
+      {isToday && now >= from && now <= to && (
+        <div
+          className="pointer-events-none absolute left-0 right-0 z-20 flex items-center"
+          style={{ top: (now - from) * PX_PER_MINUTE }}
+        >
+          <span className="-ml-[3px] h-1.5 w-1.5 rounded-full bg-destructive" />
+          <span className="h-px flex-1 bg-destructive/60" />
         </div>
       )}
 
-      <div
-        ref={setNodeRef}
-        className={cn('relative transition-colors', isOver && 'bg-primary/[0.04]')}
-        style={{ height }}
-        onDoubleClick={(e) => {
-          if (!onCreate) return
-          const box = e.currentTarget.getBoundingClientRect()
-          const minute = from + Math.round((e.clientY - box.top) / PX_PER_MINUTE / 30) * 30
-          onCreate(day, fromMinutes(minute))
-        }}
-      >
-        {/* Hour lines */}
-        {hours.map((minute) => (
-          <div
-            key={minute}
-            className="absolute left-0 right-0 border-t border-border/40"
-            style={{ top: (minute - from) * PX_PER_MINUTE }}
-          />
-        ))}
-
-        {/* Now line */}
-        {isToday && now >= from && now <= to && (
-          <div
-            className="pointer-events-none absolute left-0 right-0 z-20 flex items-center"
-            style={{ top: (now - from) * PX_PER_MINUTE }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
-            <span className="h-px flex-1 bg-destructive/70" />
-          </div>
-        )}
-
-        {blocks.map((block) => (
-          <TimelineBlock
-            key={block.id}
-            block={block}
-            from={from}
-            lane={lanes.get(block.id) ?? { index: 0, total: 1 }}
-            onOpen={() => {
-              if (block.task) onOpenTask(block.task)
-              else if (block.event) onOpenEvent(block.event)
-              else if (block.card) onOpenCard?.(block.card)
-            }}
-          />
-        ))}
-      </div>
+      {blocks.map((block) => (
+        <TimelineBlock
+          key={block.id}
+          block={block}
+          from={from}
+          lane={lanes.get(block.id) ?? { index: 0, total: 1 }}
+          onOpen={() => {
+            if (block.task) onOpenTask(block.task)
+            else if (block.event) onOpenEvent(block.event)
+            else if (block.card) onOpenCard?.(block.card)
+          }}
+        />
+      ))}
     </div>
   )
 }
@@ -401,39 +459,41 @@ function TimelineBlock({
       {...attributes}
       onClick={onOpen}
       className={cn(
-        'absolute cursor-grab overflow-hidden rounded-lg border px-2 py-1 text-left transition-opacity active:cursor-grabbing',
+        'group absolute flex cursor-grab flex-col overflow-hidden rounded-md text-left shadow-sm transition-shadow hover:shadow-elevated active:cursor-grabbing',
         isDragging && 'opacity-30'
       )}
       style={{
         top: (block.start - from) * PX_PER_MINUTE + 1,
-        height: Math.max(18, minutes * PX_PER_MINUTE - 2),
-        left: `calc(${lane.index * width}% + 2px)`,
-        width: `calc(${width}% - 4px)`,
-        background: `hsl(${block.color} / 0.16)`,
-        borderColor: `hsl(${block.color} / 0.45)`
+        height: Math.max(16, minutes * PX_PER_MINUTE - 2),
+        left: `calc(${lane.index * width}% + 3px)`,
+        width: `calc(${width}% - 6px)`,
+        background: `hsl(${block.color} / 0.18)`,
+        // A solid left edge reads as a colour code without shouting.
+        borderLeft: `3px solid hsl(${block.color})`
       }}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 px-1.5 pt-1">
         {block.locked && <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />}
+        {block.kind === 'card' && <KanbanSquare className="h-2.5 w-2.5 shrink-0 opacity-70" />}
         {block.event?.icon && (
-          <DynamicIcon name={block.event.icon} className="h-2.5 w-2.5 shrink-0" />
+          <DynamicIcon name={block.event.icon} className="h-2.5 w-2.5 shrink-0 opacity-70" />
         )}
         <span
           className={cn(
-            'truncate text-[11px] font-medium',
-            block.task?.status === 'done' && 'line-through opacity-70'
+            'truncate text-[11px] font-medium leading-tight',
+            block.task?.status === 'done' && 'line-through opacity-60'
           )}
         >
           {block.title}
         </span>
       </div>
       {minutes >= 45 && (
-        <p className="truncate text-[10px] tabular text-muted-foreground">
+        <p className="truncate px-1.5 text-[10px] tabular leading-tight text-muted-foreground">
           {fromMinutes(block.start)}–{fromMinutes(block.end)}
         </p>
       )}
       {minutes >= 75 && block.event?.location && (
-        <p className="flex items-center gap-0.5 truncate text-[10px] text-muted-foreground">
+        <p className="flex items-center gap-0.5 truncate px-1.5 text-[10px] text-muted-foreground">
           <MapPin className="h-2.5 w-2.5" /> {block.event.location}
         </p>
       )}

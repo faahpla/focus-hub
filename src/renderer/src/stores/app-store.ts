@@ -89,6 +89,7 @@ const EMPTY: AppData = {
     quickCaptureShortcut: 'CommandOrControl+Shift+Space',
     notificationsEnabled: true,
     musicSources: [],
+    cardTagPresets: [],
     alwaysElevate: false
   },
   finance: emptyFinanceData(),

@@ -279,6 +279,8 @@ export interface Settings {
   quickCaptureShortcut: string
   notificationsEnabled: boolean
   musicSources: MusicSource[]
+  /** One-click tags offered on every card, so recurring ones aren't retyped. */
+  cardTagPresets: string[]
   alwaysElevate: boolean
 }
 

@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   quickCaptureShortcut: 'CommandOrControl+Shift+Space',
   notificationsEnabled: true,
   musicSources: [],
+  cardTagPresets: [],
   alwaysElevate: false
 }
 
@@ -165,6 +166,10 @@ export class Repository {
       data.settings.musicSources = data.settings.musicSources.filter(
         (s) => s.id !== 'seed-lofi-girl'
       )
+      changed = true
+    }
+    if (data.settings && !Array.isArray(data.settings.cardTagPresets)) {
+      data.settings.cardTagPresets = []
       changed = true
     }
     if (!data.stats) {

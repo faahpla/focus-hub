@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   CalendarPlus,
   Check,
@@ -10,6 +10,7 @@ import {
   Hash,
   Maximize2,
   Paperclip,
+  Star,
   Trash2,
   Type,
   X
@@ -538,6 +539,15 @@ function CardEditor({
                   placeholder="Adicionar tag e Enter…"
                   className="h-9 text-xs"
                 />
+
+                <TagPresets
+                  current={card.tags}
+                  draft={tagDraft}
+                  onPick={(tag) =>
+                    patchWith((c) => (c.tags.includes(tag) ? {} : { tags: [...c.tags, tag] }))
+                  }
+                  onClearDraft={() => setTagDraft('')}
+                />
               </div>
             </div>
           </div>
@@ -618,3 +628,114 @@ function AssetRow({
   )
 }
 
+/**
+ * One-click tags.
+ *
+ * Two sources, deliberately: presets the user pinned, and the tags already in
+ * use on other cards. The second costs nothing to maintain and covers the
+ * common case — you almost always tag with something you've tagged before.
+ */
+function TagPresets({
+  current,
+  draft,
+  onPick,
+  onClearDraft
+}: {
+  current: string[]
+  draft: string
+  onPick: (tag: string) => void
+  onClearDraft: () => void
+}): JSX.Element {
+  const cards = useAppStore((s) => s.cards)
+  const presets = useAppStore((s) => s.settings.cardTagPresets)
+  const saveSettings = useAppStore((s) => s.saveSettings)
+  const [managing, setManaging] = useState(false)
+
+  // Tags used elsewhere, most frequent first.
+  const used = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const card of cards) {
+      for (const tag of card.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+      .map(([tag]) => tag)
+  }, [cards])
+
+  const pinned = presets.filter((t) => !current.includes(t))
+  const suggestions = used.filter((t) => !current.includes(t) && !presets.includes(t)).slice(0, 8)
+  const trimmedDraft = draft.trim()
+  const canPin = trimmedDraft.length > 0 && !presets.includes(trimmedDraft)
+
+  const setPresets = (next: string[]): void => void saveSettings({ cardTagPresets: next })
+
+  return (
+    <div className="mt-2">
+      {(pinned.length > 0 || suggestions.length > 0) && (
+        <div className="flex flex-wrap gap-1.5">
+          {pinned.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => onPick(tag)}
+              className="no-drag flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary/20"
+            >
+              <Star className="h-2.5 w-2.5 fill-current" />#{tag}
+            </button>
+          ))}
+          {suggestions.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => onPick(tag)}
+              className="no-drag rounded-lg border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              #{tag}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-1.5 flex items-center gap-2">
+        {canPin && (
+          <button
+            onClick={() => {
+              setPresets([...presets, trimmedDraft])
+              onPick(trimmedDraft)
+              onClearDraft()
+            }}
+            className="no-drag flex items-center gap-1 text-[11px] text-primary transition-colors hover:underline"
+          >
+            <Star className="h-2.5 w-2.5" /> Fixar “{trimmedDraft}”
+          </button>
+        )}
+        <button
+          onClick={() => setManaging((m) => !m)}
+          className="no-drag ml-auto text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {managing ? 'Fechar' : 'Editar fixas'}
+        </button>
+      </div>
+
+      {managing && (
+        <div className="mt-2 rounded-lg border border-border/70 bg-surface/50 p-2">
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
+            Tags fixas aparecem em todos os cards. Separe por vírgula.
+          </p>
+          <Input
+            defaultValue={presets.join(', ')}
+            placeholder="tensura, mushoku tensei, bleach"
+            onBlur={(e) =>
+              setPresets(
+                e.target.value
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              )
+            }
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className="h-8 text-xs"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
