@@ -2,10 +2,13 @@ import { exec } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { shell } from 'electron'
 import type { FlowApplyResult, FlowConfig } from '../../shared/types'
+import { normalizeHost } from '../../shared/flow'
 
 const HOSTS_PATH = 'C:\\Windows\\System32\\drivers\\etc\\hosts'
 const BLOCK_START = '# >>> FOCUS HUB BLOCK >>>'
 const BLOCK_END = '# <<< FOCUS HUB BLOCK <<<'
+
+const toCrlf = (s: string): string => s.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
 
 function run(cmd: string): Promise<{ ok: boolean; out: string }> {
   return new Promise((resolve) => {
@@ -114,8 +117,17 @@ export class FlowService {
         )
       } else {
         const blocked = await this.writeHostsBlock(config.blockSites)
-        if (blocked) result.blockedSites = config.blockSites
-        else result.warnings.push('Não consegui escrever no arquivo hosts.')
+        if (blocked) {
+          result.blockedSites = config.blockSites
+          // The hosts file is only consulted on a fresh lookup. Tabs that are
+          // already open keep their connection and their in-browser DNS cache,
+          // so the block looks broken until the page is reloaded.
+          result.warnings.push('Recarregue as abas já abertas para o bloqueio valer nelas.')
+        } else {
+          result.warnings.push(
+            'Não consegui gravar o bloqueio no arquivo hosts (o antivírus pode estar protegendo ele).'
+          )
+        }
       }
     }
 
@@ -136,6 +148,16 @@ export class FlowService {
     this.active = false
   }
 
+  /**
+   * Strip any block left over from a session that never ended cleanly (a crash,
+   * a force-quit, a Windows shutdown). Called once on startup — otherwise the
+   * user stays locked out of a site with no session running and no way to tell
+   * why, which is the worst possible failure for this feature.
+   */
+  async cleanupStale(): Promise<void> {
+    await this.removeHostsBlock()
+  }
+
   private async writeHostsBlock(sites: string[]): Promise<boolean> {
     try {
       let content = ''
@@ -147,14 +169,26 @@ export class FlowService {
       const cleaned = this.stripBlock(content)
       const lines = [BLOCK_START]
       for (const raw of sites) {
-        const host = raw.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim()
+        const host = normalizeHost(raw)
         if (!host) continue
-        lines.push(`127.0.0.1 ${host}`)
-        lines.push(`127.0.0.1 www.${host}`)
+        // 0.0.0.0 fails instantly; 127.0.0.1 waits on a local port that may
+        // even answer if the user runs a dev server. Cover the subdomains a
+        // distraction actually arrives through, not just the bare host.
+        for (const variant of [host, `www.${host}`, `m.${host}`]) {
+          lines.push(`0.0.0.0 ${variant}`)
+        }
       }
       lines.push(BLOCK_END)
-      const next = `${cleaned.trimEnd()}\n${lines.join('\n')}\n`
+      // The hosts file is a Windows-owned text file: keep it CRLF.
+      const next = toCrlf(`${cleaned.trimEnd()}\n${lines.join('\n')}\n`)
       await fs.writeFile(HOSTS_PATH, next, 'utf8')
+
+      // Read it back. Writing can appear to succeed and then be reverted by
+      // Defender's tamper protection, and reporting a block that isn't there
+      // is worse than reporting a failure.
+      const check = await fs.readFile(HOSTS_PATH, 'utf8')
+      if (!check.includes(BLOCK_START)) return false
+
       await run('ipconfig /flushdns')
       return true
     } catch {
@@ -167,7 +201,7 @@ export class FlowService {
       const content = await fs.readFile(HOSTS_PATH, 'utf8')
       const cleaned = this.stripBlock(content)
       if (cleaned !== content) {
-        await fs.writeFile(HOSTS_PATH, `${cleaned.trimEnd()}\n`, 'utf8')
+        await fs.writeFile(HOSTS_PATH, toCrlf(`${cleaned.trimEnd()}\n`), 'utf8')
         await run('ipconfig /flushdns')
       }
     } catch {

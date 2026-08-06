@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { MusicSourcesEditor } from '@/features/music/music-sources-editor'
+import { AppListEditor, SiteListEditor } from '@/features/projects/list-editors'
 import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
 import type { BackupInfo, ThemeName, UpdateStatus } from '@shared/types'
@@ -165,6 +166,65 @@ export function SettingsPage(): JSX.Element {
               Ctrl + Shift + Space
             </kbd>
           </Row>
+        </Section>
+
+        {/* Flow — global, applies to every session */}
+        <Section title="Modo Flow">
+          <div className="px-5 py-4">
+            <p className="mb-4 text-xs text-muted-foreground">
+              Vale para <strong className="text-foreground">toda</strong> sessão de foco, com ou
+              sem projeto. Um projeto pode acrescentar mais itens aos daqui.
+            </p>
+            <div className="space-y-5">
+              <StackedField
+                label="Bloquear sites"
+                hint={
+                  appInfo?.elevated
+                    ? 'Escreve no arquivo hosts durante a sessão e desfaz ao terminar.'
+                    : 'Precisa de administrador — veja a seção abaixo.'
+                }
+              >
+                <SiteListEditor
+                  value={settings.flow.blockSites}
+                  onChange={(blockSites) =>
+                    saveSettings({ flow: { ...settings.flow, blockSites } })
+                  }
+                  placeholder="youtube.com"
+                />
+              </StackedField>
+              <StackedField label="Fechar aplicativos" hint="Encerrados ao começar a sessão.">
+                <AppListEditor
+                  value={settings.flow.closeApps}
+                  onChange={(closeApps) => saveSettings({ flow: { ...settings.flow, closeApps } })}
+                  placeholder="Discord.exe"
+                />
+              </StackedField>
+              <StackedField label="Abrir aplicativos" hint="Iniciados ao começar a sessão.">
+                <AppListEditor
+                  value={settings.flow.launchApps}
+                  onChange={(launchApps) =>
+                    saveSettings({ flow: { ...settings.flow, launchApps } })
+                  }
+                  placeholder="C:\\...\\App.exe"
+                />
+              </StackedField>
+              <StackedField label="Sites permitidos" hint="Abertos automaticamente ao iniciar.">
+                <SiteListEditor
+                  value={settings.flow.allowSites}
+                  onChange={(allowSites) =>
+                    saveSettings({ flow: { ...settings.flow, allowSites } })
+                  }
+                  placeholder="docs.google.com"
+                />
+              </StackedField>
+            </div>
+          </div>
+          <ToggleRow
+            label="Entrar em Ultra Focus"
+            desc="Vai direto para a tela minimalista ao iniciar (sem projeto selecionado)."
+            checked={settings.flow.ultraFocus}
+            onChange={(ultraFocus) => saveSettings({ flow: { ...settings.flow, ultraFocus } })}
+          />
         </Section>
 
         {/* Administrator */}
@@ -477,6 +537,27 @@ function Row({
         {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
       </div>
       <div className="shrink-0">{children}</div>
+    </div>
+  )
+}
+
+/** A label + full-width editor, for controls too wide to sit beside their label. */
+function StackedField({
+  label,
+  hint,
+  children
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}): JSX.Element {
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <label className="text-sm font-medium">{label}</label>
+        {hint && <span className="text-right text-[11px] text-muted-foreground">{hint}</span>}
+      </div>
+      {children}
     </div>
   )
 }

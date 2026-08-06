@@ -193,6 +193,12 @@ export interface BoardCard {
   description?: string
   /** Publish-ready hashtags, stored verbatim so copy/paste round-trips. */
   hashtags?: string
+  /**
+   * The comment to pin under the published video. Kept apart from the
+   * description because it is written later, in a different voice, and gets
+   * pasted somewhere else entirely.
+   */
+  pinnedComment?: string
   assets: CardAsset[]
   tags: string[]
   /** Marked finished — either by hand or by landing in a "done" column. */
@@ -281,6 +287,11 @@ export interface Settings {
   musicSources: MusicSource[]
   /** One-click tags offered on every card, so recurring ones aren't retyped. */
   cardTagPresets: string[]
+  /**
+   * Flow settings that apply to every session, with or without a project.
+   * A project's own Flow is layered on top of this one (see shared/flow.ts).
+   */
+  flow: FlowConfig
   alwaysElevate: boolean
 }
 

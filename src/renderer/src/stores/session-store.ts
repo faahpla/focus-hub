@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Achievement, FlowApplyResult, Project, Session, Task } from '@shared/types'
+import { flowIsEmpty, mergeFlow } from '@shared/flow'
 import { uid } from '@/lib/utils'
 import { todayKey } from '@/lib/format'
 import { useAppStore } from './app-store'
@@ -115,13 +116,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       /* ignore */
     }
 
-    // Apply the Flow environment (best effort).
-    if (project) {
+    // Apply the Flow environment (best effort). The global config always runs;
+    // a project only adds to it. Without this a session with no project
+    // selected silently skipped Flow entirely — nothing blocked, no warning.
+    const flow = mergeFlow(useAppStore.getState().settings.flow, project?.flow)
+    if (!flowIsEmpty(flow)) {
       set({ applyingFlow: true })
       try {
-        const flowResult = await window.focusHub.applyFlow(project.flow)
-        set({ flowResult, ultraFocus: project.flow.ultraFocus })
-        if (project.flow.ultraFocus) window.focusHub.setUltraFocus(true)
+        const flowResult = await window.focusHub.applyFlow(flow)
+        set({ flowResult, ultraFocus: flow.ultraFocus })
+        if (flow.ultraFocus) window.focusHub.setUltraFocus(true)
 
         // Surface exactly what happened to the machine.
         const lines: string[] = []

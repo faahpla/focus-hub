@@ -21,6 +21,7 @@ import type {
 import { DEFAULT_FINANCE_SETTINGS, SEED_CATEGORIES, emptyFinanceData } from '../../shared/finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import { DEFAULT_PLANNER_SETTINGS } from '../../shared/planner'
+import { emptyFlow } from '../../shared/flow'
 
 const now = (): string => new Date().toISOString()
 const today = (): string => new Date().toISOString().slice(0, 10)
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
   musicSources: [],
   cardTagPresets: [],
+  flow: emptyFlow(),
   alwaysElevate: false
 }
 
@@ -170,6 +172,12 @@ export class Repository {
     }
     if (data.settings && !Array.isArray(data.settings.cardTagPresets)) {
       data.settings.cardTagPresets = []
+      changed = true
+    }
+    // Flow used to exist only inside projects, so a session without one did
+    // nothing. Backfill the global config every launch until it's there.
+    if (data.settings && !data.settings.flow) {
+      data.settings.flow = emptyFlow()
       changed = true
     }
     if (!data.stats) {

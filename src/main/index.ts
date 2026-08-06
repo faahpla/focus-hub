@@ -124,6 +124,9 @@ if (!gotLock) {
       }
     }
 
+    // A crash mid-session would leave the hosts block in place forever.
+    void flow.cleanupStale()
+
     // Serve the built renderer over app://local/* whenever we're not using the
     // Vite dev server (covers the packaged app and the built output directly).
     if (!process.env['ELECTRON_RENDERER_URL']) serveRenderer(join(__dirname, '../renderer'))

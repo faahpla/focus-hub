@@ -3,6 +3,7 @@ import { FolderOpen, Plus, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { FlowApp, FlowResource } from '@shared/types'
+import { normalizeHost } from '@shared/flow'
 import { uid } from '@/lib/utils'
 
 /** Simple chip-based editor for a list of hostnames. */
@@ -17,10 +18,7 @@ export function SiteListEditor({
 }): JSX.Element {
   const [draft, setDraft] = useState('')
   const add = (): void => {
-    const host = draft
-      .trim()
-      .replace(/^https?:\/\//, '')
-      .replace(/\/.*$/, '')
+    const host = normalizeHost(draft)
     if (host && !value.includes(host)) onChange([...value, host])
     setDraft('')
   }

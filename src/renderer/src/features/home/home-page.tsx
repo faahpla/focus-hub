@@ -339,7 +339,7 @@ export function HomePage(): JSX.Element {
           )}
         </div>
 
-        {!isActive && activeProject && <FlowSummary project={activeProject} />}
+        {!isActive && <FlowSummary project={activeProject} />}
 
         <AmbientBar />
        </div>

@@ -9,6 +9,7 @@ import {
   Folder,
   Hash,
   Maximize2,
+  MessageSquare,
   Paperclip,
   Star,
   Trash2,
@@ -138,6 +139,9 @@ function CardEditor({
   )
   const [hashtags, setHashtags] = useAutosavedText(card.hashtags ?? '', (next) =>
     patch({ hashtags: next })
+  )
+  const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
+    patch({ pinnedComment: next })
   )
 
   const addTag = (): void => {
@@ -459,6 +463,31 @@ function CardEditor({
                     <Folder className="h-3.5 w-3.5" /> Pasta
                   </Button>
                 </div>
+              </div>
+
+              {/* Pinned comment — written last, pasted somewhere else. */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /> Comentário
+                    fixado
+                  </p>
+                  <CopyButton value={pinnedComment} />
+                </div>
+                <textarea
+                  value={pinnedComment}
+                  onChange={(e) => setPinnedComment(e.target.value)}
+                  onBlur={() =>
+                    pinnedComment !== (card.pinnedComment ?? '') && patch({ pinnedComment })
+                  }
+                  placeholder="O comentário que você fixa no post…"
+                  className="no-drag min-h-[120px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+                {pinnedComment.trim() && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {pinnedComment.trim().length} caracteres
+                  </p>
+                )}
               </div>
 
               {/* Delivery — the card's own slot on the planner, not its tasks'. */}

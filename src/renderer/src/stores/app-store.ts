@@ -19,6 +19,7 @@ import type {
 import { emptyFinanceData } from '@shared/finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '@shared/planner'
 import { DEFAULT_PLANNER_SETTINGS } from '@shared/planner'
+import { emptyFlow } from '@shared/flow'
 
 interface AppState extends AppData {
   loaded: boolean
@@ -90,6 +91,7 @@ const EMPTY: AppData = {
     notificationsEnabled: true,
     musicSources: [],
     cardTagPresets: [],
+    flow: emptyFlow(),
     alwaysElevate: false
   },
   finance: emptyFinanceData(),
