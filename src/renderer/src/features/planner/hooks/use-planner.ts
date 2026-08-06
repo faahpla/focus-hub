@@ -18,7 +18,8 @@ import {
 export function useDayTasks(day: DayKey): Task[] {
   const tasks = useAppStore((s) => s.tasks)
   return useMemo(() => {
-    const mine = tasks.filter((t) => t.scheduledDate === day)
+    // Tasks inside a card belong to the card, not to the day.
+    const mine = tasks.filter((t) => t.scheduledDate === day && !t.cardId)
     return mine.sort((a, b) => {
       if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime)
       if (a.startTime) return -1
@@ -31,22 +32,24 @@ export function useDayTasks(day: DayKey): Task[] {
 export function useCapacity(day: DayKey): DayCapacity {
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
+  const cards = useAppStore((s) => s.cards)
   const settings = useAppStore((s) => s.planner)
   return useMemo(
-    () => dayCapacity(day, tasks, events, settings),
-    [day, tasks, events, settings]
+    () => dayCapacity(day, tasks, events, settings, cards),
+    [day, tasks, events, settings, cards]
   )
 }
 
 export function useNow(day: DayKey): NowState {
   const tasks = useAppStore((s) => s.tasks)
+  const cards = useAppStore((s) => s.cards)
   const settings = useAppStore((s) => s.planner)
   // Re-resolve every 30s so "faltam 12min" doesn't sit there going stale.
   const tick = useMinuteTick()
   return useMemo(
-    () => resolveNow(day, tasks, settings, today()),
+    () => resolveNow(day, tasks, cards, settings, today()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [day, tasks, settings, tick]
+    [day, tasks, cards, settings, tick]
   )
 }
 

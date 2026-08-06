@@ -82,6 +82,7 @@ export function Timeline({
     let start = toMinutes(settings.dayStart)
     let end = toMinutes(settings.dayEnd)
     for (const task of tasks) {
+      if (task.cardId) continue
       if (!days.includes(task.scheduledDate ?? '') || !task.startTime) continue
       start = Math.min(start, toMinutes(task.startTime))
       end = Math.max(end, toMinutes(task.startTime) + taskDuration(task, settings))
@@ -105,6 +106,8 @@ export function Timeline({
     const out: Block[] = []
     if (layers.tasks) {
       for (const task of tasks) {
+        // A card's internal steps never get their own block.
+        if (task.cardId) continue
         if (!task.scheduledDate || !days.includes(task.scheduledDate) || !task.startTime) continue
         const start = toMinutes(task.startTime)
         out.push({

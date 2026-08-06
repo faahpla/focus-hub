@@ -59,7 +59,7 @@ export function MonthGrid({
 
     if (layers.tasks) {
       for (const task of tasks) {
-        if (!task.scheduledDate) continue
+        if (task.cardId || !task.scheduledDate) continue
         push(task.scheduledDate, {
           id: task.id,
           label: task.title,

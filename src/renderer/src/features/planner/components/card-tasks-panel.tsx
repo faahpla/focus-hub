@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarPlus, ListChecks, Play, Plus } from 'lucide-react'
+import { ListChecks, Play, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ProgressBar } from '@/components/ui/progress-bar'
@@ -13,7 +13,6 @@ import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
 import { TaskRow } from './task-row'
 import { taskDuration } from '../services/scheduler'
 import { formatMinutes } from '../utils/time'
-import { today } from '@/lib/dates'
 
 /** Steps most video cards go through, offered as one-click scaffolding. */
 const TEMPLATE = ['Roteiro', 'Gravar', 'Editar', 'Thumbnail', 'Publicar']
@@ -95,20 +94,6 @@ export function CardTasksPanel({
     })
   }
 
-  const scheduleAll = (): void => {
-    const stamp = new Date().toISOString()
-    const changed = cardTasks
-      .filter((t) => t.status !== 'done' && !t.scheduledDate)
-      .map((t) => ({ ...t, scheduledDate: today(), updatedAt: stamp }))
-    if (changed.length === 0) return
-    void saveTasks(changed)
-    pushToast({
-      title: `${changed.length} tarefa(s) para hoje`,
-      lines: ['Use “Organizar meu dia” para encaixar nos horários livres.'],
-      variant: 'success'
-    })
-  }
-
   const start = (task: Task): void => {
     configure({
       project: projects.find((p) => p.id === task.projectId),
@@ -176,11 +161,10 @@ export function CardTasksPanel({
         className="h-9 text-xs"
       />
 
-      {cardTasks.some((t) => t.status !== 'done' && !t.scheduledDate) && (
-        <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={scheduleAll}>
-          <CalendarPlus className="h-3.5 w-3.5" /> Jogar tudo para hoje
-        </Button>
-      )}
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        As etapas ficam dentro do card. Quem vai para a Agenda é o card, com a data e a hora
+        de entrega.
+      </p>
 
       {cardTasks.length > 0 && cardTasks.every((t) => t.status === 'done') && (
         <p className="mt-2 flex items-center gap-1 text-[11px] text-success">

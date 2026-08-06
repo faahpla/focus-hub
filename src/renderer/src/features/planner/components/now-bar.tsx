@@ -5,7 +5,7 @@ import { ProgressBar } from '@/components/ui/progress-bar'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { cn } from '@/lib/utils'
-import type { Task } from '@shared/types'
+import type { BoardCard, Task } from '@shared/types'
 import { formatMinutes } from '../utils/time'
 import { useNow } from '../hooks/use-planner'
 import { taskDuration } from '../services/scheduler'
@@ -20,23 +20,49 @@ import { taskDuration } from '../services/scheduler'
  */
 export function NowBar({
   day,
-  onOpenTask
+  onOpenTask,
+  onOpenCard
 }: {
   day: string
   onOpenTask: (task: Task) => void
+  onOpenCard: (card: BoardCard) => void
 }): JSX.Element {
   const now = useNow(day)
   const settings = useAppStore((s) => s.planner)
   const projects = useAppStore((s) => s.projects)
   const session = useSessionStore()
+  const tasks = useAppStore((s) => s.tasks)
 
-  const active = now.current?.task ?? now.next?.task ?? now.suggestion
+  const active = now.current?.item ?? now.next?.item ?? now.suggestion
   const isRunning = session.phase === 'running' || session.phase === 'paused'
+  const steps = active?.card
+    ? tasks.filter((t) => t.cardId === active.card!.id)
+    : []
+  const cardSteps =
+    steps.length > 0
+      ? `${steps.filter((t) => t.status === 'done').length}/${steps.length} etapas`
+      : undefined
 
-  const start = (task: Task): void => {
-    const project = projects.find((p) => p.id === task.projectId)
+  const open = (): void => {
+    if (!active) return
+    if (active.task) onOpenTask(active.task)
+    else if (active.card) onOpenCard(active.card)
+  }
+
+  /**
+   * Starting focus on a card means starting on its first open step — the card
+   * itself is a deliverable, and you can't run a timer on a deliverable.
+   */
+  const start = (): void => {
+    if (!active) return
+    const task =
+      active.task ??
+      tasks
+        .filter((t) => t.cardId === active.card?.id && t.status !== 'done')
+        .sort((a, b) => a.order - b.order)[0]
+    if (!task) return
     session.configure({
-      project,
+      project: projects.find((p) => p.id === task.projectId),
       task,
       minutes: Math.max(5, taskDuration(task, settings))
     })
@@ -66,7 +92,7 @@ export function NowBar({
       : 'Sugestão'
 
   const progress = now.current
-    ? 1 - now.current.minutesLeft / taskDuration(now.current.task, settings)
+    ? 1 - now.current.minutesLeft / now.current.item.durationMinutes
     : 0
 
   return (
@@ -113,7 +139,7 @@ export function NowBar({
           </div>
 
           <button
-            onClick={() => onOpenTask(active)}
+            onClick={open}
             className="no-drag block max-w-full truncate text-left text-xl font-semibold tracking-tight transition-colors hover:text-primary"
           >
             {active.title}
@@ -121,8 +147,11 @@ export function NowBar({
 
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {[
-              projects.find((p) => p.id === active.projectId)?.name,
-              formatMinutes(taskDuration(active, settings))
+              active.kind === 'card'
+                ? 'Entrega'
+                : projects.find((p) => p.id === active.task?.projectId)?.name,
+              formatMinutes(active.durationMinutes),
+              active.kind === 'card' ? cardSteps : undefined
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -130,12 +159,12 @@ export function NowBar({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onOpenTask(active)}>
+          <Button variant="ghost" size="sm" onClick={open}>
             Detalhes <ArrowRight className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="primary"
-            onClick={() => start(active)}
+            onClick={start}
             disabled={isRunning}
             title={isRunning ? 'Já existe uma sessão em andamento' : 'Iniciar sessão de foco'}
           >

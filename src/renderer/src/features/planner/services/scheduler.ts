@@ -13,7 +13,7 @@
  * can read.
  */
 
-import type { ID, Priority, Task } from '@shared/types'
+import type { BoardCard, ID, Priority, Task } from '@shared/types'
 import type { CalendarEvent, PlannerSettings } from '@shared/planner'
 import type { DayKey } from '@/lib/dates'
 import {
@@ -26,6 +26,7 @@ import {
   toMinutes
 } from '../utils/time'
 import { indexTasks, openDependencies, topologicalOrder } from './dependencies'
+import { type PlannerItem, buildDayItems, cardDuration } from './day-items'
 
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 const ENERGY_RANK = { high: 0, medium: 1, low: 2 } as const
@@ -60,6 +61,8 @@ export interface ScheduleOptions {
   /** Every task in the app — needed to resolve dependencies. */
   tasks: Task[]
   events: CalendarEvent[]
+  /** Cards delivering that day — immovable blocks, never rearranged. */
+  cards?: BoardCard[]
   settings: PlannerSettings
   /**
    * Don't place anything before this time. Passing the current clock is what
@@ -79,7 +82,8 @@ export function busyIntervals(
   tasks: Task[],
   events: CalendarEvent[],
   settings: PlannerSettings,
-  includePinnedTasks = true
+  includePinnedTasks = true,
+  cards: BoardCard[] = []
 ): Interval[] {
   const busy: Interval[] = []
 
@@ -95,25 +99,36 @@ export function busyIntervals(
 
   if (includePinnedTasks) {
     for (const task of tasks) {
+      if (task.cardId) continue // internal to a card, not a day block
       if (task.scheduledDate !== day || !task.pinned || !task.startTime) continue
       if (task.status === 'done') continue
       const start = toMinutes(task.startTime)
       busy.push({ start, end: start + taskDuration(task, settings) })
     }
   }
+
+  // A card delivering at a set time owns that slot; nothing gets planned over it.
+  for (const card of cards) {
+    if (card.dueDate !== day || !card.dueTime || card.done) continue
+    const start = toMinutes(card.dueTime)
+    busy.push({ start, end: start + cardDuration(card) })
+  }
   return busy
 }
 
 /** Slots the scheduler may fill, in chronological order. */
 export function freeSlots(options: ScheduleOptions): Interval[] {
-  const { day, tasks, events, settings, notBefore } = options
+  const { day, tasks, events, cards = [], settings, notBefore } = options
   const start = Math.max(
     toMinutes(settings.dayStart),
     notBefore ? toMinutes(notBefore) : 0
   )
   const end = toMinutes(settings.dayEnd)
   if (end <= start) return []
-  return subtractIntervals([{ start, end }], busyIntervals(day, tasks, events, settings))
+  return subtractIntervals(
+    [{ start, end }],
+    busyIntervals(day, tasks, events, settings, true, cards)
+  )
 }
 
 /**
@@ -134,8 +149,10 @@ export function planDay(options: ScheduleOptions): DayPlan {
   const placements: Placement[] = []
   const rejections: Rejection[] = []
 
+  // Tasks inside a card are the card's internal process — the card is what
+  // occupies the day, so they are never scheduled as separate blocks.
   const candidates = tasks.filter(
-    (t) => t.scheduledDate === day && t.status !== 'done' && !t.pinned
+    (t) => t.scheduledDate === day && t.status !== 'done' && !t.pinned && !t.cardId
   )
   const sameDay = new Set(candidates.map((t) => t.id))
 
@@ -252,7 +269,8 @@ export function dayCapacity(
   day: DayKey,
   tasks: Task[],
   events: CalendarEvent[],
-  settings: PlannerSettings
+  settings: PlannerSettings,
+  cards: BoardCard[] = []
 ): DayCapacity {
   const window = {
     start: toMinutes(settings.dayStart),
@@ -265,17 +283,20 @@ export function dayCapacity(
     0
   )
 
-  const dayTasks = tasks.filter((t) => t.scheduledDate === day)
-  const pending = dayTasks.filter((t) => t.status !== 'done')
-  const planned = pending.reduce((sum, t) => sum + taskDuration(t, settings), 0)
+  // Cards count as work; the tasks inside them do not, or the same hours would
+  // be counted twice.
+  const items = buildDayItems(day, tasks, cards, settings)
+  const planned = items
+    .filter((i) => !i.done)
+    .reduce((sum, i) => sum + i.durationMinutes, 0)
 
   return {
     availableMinutes: available,
     plannedMinutes: planned,
     overloadMinutes: Math.max(0, planned - available),
     ratio: available > 0 ? planned / available : planned > 0 ? Infinity : 0,
-    taskCount: dayTasks.length,
-    doneCount: dayTasks.filter((t) => t.status === 'done').length
+    taskCount: items.length,
+    doneCount: items.filter((i) => i.done).length
   }
 }
 
@@ -340,43 +361,52 @@ export function applyPlan(plan: DayPlan, tasks: Task[]): Task[] {
 
 export interface NowState {
   /** The block covering the current minute, if any. */
-  current?: { task: Task; startTime: Clock; endTime: Clock; minutesLeft: number }
+  current?: { item: PlannerItem; startTime: Clock; endTime: Clock; minutesLeft: number }
   /** What comes after it. */
-  next?: { task: Task; startTime: Clock; minutesUntil: number }
+  next?: { item: PlannerItem; startTime: Clock; minutesUntil: number }
   /** Best unscheduled candidate when nothing is booked. */
-  suggestion?: Task
+  suggestion?: PlannerItem
 }
 
 /**
  * The answer to the question the whole module exists for. Falls back through
  * three levels so it is never empty while there is work to do: what is running
- * now, what is next, and — when nothing is booked — the task the scheduler
- * would have picked first anyway.
+ * now, what is next, and — when nothing is booked — the item that is most
+ * urgent anyway.
+ *
+ * Works on day *items*, so a card shows up as itself rather than as the six
+ * internal steps it happens to be made of.
  */
 export function resolveNow(
   day: DayKey,
   tasks: Task[],
+  cards: BoardCard[],
   settings: PlannerSettings,
   today: DayKey
 ): NowState {
-  const dayTasks = tasks.filter((t) => t.scheduledDate === day && t.status !== 'done')
-  const timed = dayTasks
-    .filter((t) => t.startTime)
-    .map((t) => ({
-      task: t,
-      start: toMinutes(t.startTime!),
-      end: toMinutes(t.startTime!) + taskDuration(t, settings)
-    }))
+  const items = buildDayItems(day, tasks, cards, settings).filter((i) => !i.done)
+  const timed = items
+    .filter((i) => i.start !== undefined)
+    .map((i) => ({ item: i, start: i.start!, end: i.start! + i.durationMinutes }))
     .sort((a, b) => a.start - b.start)
+
+  const loose = items.filter((i) => i.start === undefined)
+  // Cards are deliverables with a date attached, so they outrank loose tasks.
+  const pickLoose = (): PlannerItem | undefined =>
+    loose.find((i) => i.kind === 'card') ??
+    sortByUrgency(loose.filter((i) => i.task).map((i) => i.task!))
+      .map((t) => loose.find((i) => i.id === t.id))
+      .find(Boolean) ??
+    loose[0]
 
   // Looking at another day: there is no "now", only what comes first.
   if (day !== today) {
     const first = timed[0]
     return {
       next: first
-        ? { task: first.task, startTime: fromMinutes(first.start), minutesUntil: 0 }
+        ? { item: first.item, startTime: fromMinutes(first.start), minutesUntil: 0 }
         : undefined,
-      suggestion: first ? undefined : sortByUrgency(dayTasks)[0]
+      suggestion: first ? undefined : pickLoose()
     }
   }
 
@@ -387,7 +417,7 @@ export function resolveNow(
   return {
     current: running
       ? {
-          task: running.task,
+          item: running.item,
           startTime: fromMinutes(running.start),
           endTime: fromMinutes(running.end),
           minutesLeft: running.end - now
@@ -395,14 +425,11 @@ export function resolveNow(
       : undefined,
     next: upcoming
       ? {
-          task: upcoming.task,
+          item: upcoming.item,
           startTime: fromMinutes(upcoming.start),
           minutesUntil: upcoming.start - now
         }
       : undefined,
-    suggestion:
-      running || upcoming
-        ? undefined
-        : sortByUrgency(dayTasks.filter((t) => !t.startTime))[0]
+    suggestion: running || upcoming ? undefined : pickLoose()
   }
 }

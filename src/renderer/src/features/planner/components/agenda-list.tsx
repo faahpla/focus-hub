@@ -58,6 +58,7 @@ export function AgendaList({
 
     if (layers.tasks) {
       for (const task of tasks) {
+        if (task.cardId) continue // shown through its card
         if (!task.scheduledDate || task.status === 'done') continue
         push(task.scheduledDate, { kind: 'task', sort: task.startTime ?? '99:99', task })
       }

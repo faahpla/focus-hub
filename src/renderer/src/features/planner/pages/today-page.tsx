@@ -181,7 +181,11 @@ export function TodayPage(): JSX.Element {
             </div>
           </div>
 
-          <NowBar day={day} onOpenTask={(t) => setOpenTaskId(t.id)} />
+          <NowBar
+            day={day}
+            onOpenTask={(t) => setOpenTaskId(t.id)}
+            onOpenCard={setOpenCard}
+          />
 
           <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
             <div className="space-y-4">
