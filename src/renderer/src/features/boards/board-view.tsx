@@ -44,6 +44,7 @@ import { useAppStore } from '@/stores/app-store'
 import type { Board, BoardCard, BoardColumn, Task } from '@shared/types'
 import { COLUMN_COLORS, isCardDone, makeColumn } from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
+import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
 
 type Lanes = Record<string, string[]>
@@ -75,6 +76,7 @@ const collisionDetection: CollisionDetection = (args) => {
 }
 
 export function BoardView({ board }: { board: Board }): JSX.Element {
+  const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null)
   const allCards = useAppStore((s) => s.cards)
   const tasks = useAppStore((s) => s.tasks)
   const saveCard = useAppStore((s) => s.saveCard)
@@ -279,6 +281,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               onDelete={() => removeColumn(column.id)}
               onOpenCard={setOpenCardId}
               onToggleCardDone={toggleCardDone}
+              onCardContextMenu={setContextTarget}
               columns={columns}
             />
           ))}
@@ -304,6 +307,15 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
           )}
         </DragOverlay>
       </DndContext>
+
+      {contextTarget && (
+        <CardContextMenu
+          target={contextTarget}
+          board={board}
+          onClose={() => setContextTarget(null)}
+          onOpenCard={setOpenCardId}
+        />
+      )}
 
       {openCardId && (
         <CardDetailDialog
@@ -331,6 +343,7 @@ function Column({
   onDelete,
   onOpenCard,
   onToggleCardDone,
+  onCardContextMenu,
   columns
 }: {
   column: BoardColumn
@@ -345,6 +358,7 @@ function Column({
   onDelete: () => void
   onOpenCard: (id: string) => void
   onToggleCardDone: (id: string) => void
+  onCardContextMenu: (target: ContextTarget) => void
   columns: BoardColumn[]
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
@@ -485,6 +499,10 @@ function Column({
                   done={isCardDone(card, columns)}
                   onOpen={() => onOpenCard(id)}
                   onToggleDone={() => onToggleCardDone(id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    onCardContextMenu({ cardId: id, x: e.clientX, y: e.clientY })
+                  }}
                 />
               )
             })}
@@ -554,13 +572,15 @@ function SortableCard({
   tasks,
   done,
   onOpen,
-  onToggleDone
+  onToggleDone,
+  onContextMenu
 }: {
   card: BoardCard
   tasks: Task[]
   done: boolean
   onOpen: () => void
   onToggleDone: () => void
+  onContextMenu: (e: React.MouseEvent) => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id
@@ -572,6 +592,7 @@ function SortableCard({
       {...attributes}
       {...listeners}
       onClick={onOpen}
+      onContextMenu={onContextMenu}
       className={cn('no-drag touch-none', isDragging && 'opacity-30')}
     >
       <CardBody card={card} tasks={tasks} done={done} onToggleDone={onToggleDone} />

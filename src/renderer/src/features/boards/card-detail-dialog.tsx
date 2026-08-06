@@ -31,7 +31,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
-import { dayLabel, today } from '@/lib/dates'
+import { addDaysToKey, dayLabel, today } from '@/lib/dates'
 import { CardTasksPanel } from '@/features/planner/components/card-tasks-panel'
 import { useAppStore } from '@/stores/app-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
@@ -250,6 +250,57 @@ function CardEditor({
                         </span>
                       </DropdownMenuItem>
                     ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Delivery lives in the header because it is the decision that
+                  puts this card on the day — burying it in the side rail meant
+                  nobody found it. */}
+              <span className="text-border">·</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      'no-drag flex items-center gap-1.5 rounded-lg px-2 py-1 transition-colors',
+                      card.dueDate
+                        ? 'bg-primary/15 text-primary hover:bg-primary/25'
+                        : 'bg-surface-elevated text-muted-foreground hover:bg-surface-hover hover:text-foreground'
+                    )}
+                  >
+                    <CalendarPlus className="h-3.5 w-3.5" />
+                    {card.dueDate
+                      ? `${dayLabel(card.dueDate)}${card.dueTime ? ` · ${card.dueTime}` : ''}`
+                      : 'Sem data'}
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>Entregar em</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    active={card.dueDate === today()}
+                    onSelect={() => patch({ dueDate: today() })}
+                  >
+                    Hoje
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    active={card.dueDate === addDaysToKey(today(), 1)}
+                    onSelect={() => patch({ dueDate: addDaysToKey(today(), 1) })}
+                  >
+                    Amanhã
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => patch({ dueDate: addDaysToKey(today(), 7) })}
+                  >
+                    Daqui a uma semana
+                  </DropdownMenuItem>
+                  {card.dueDate && (
+                    <DropdownMenuItem
+                      className="text-destructive data-[highlighted]:bg-destructive/10"
+                      onSelect={() => patch({ dueDate: undefined, dueTime: undefined })}
+                    >
+                      Tirar da Agenda
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
