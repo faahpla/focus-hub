@@ -11,7 +11,8 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { useState } from 'react'
-import { KanbanSquare, Lock, MapPin } from 'lucide-react'
+import { CheckCircle2, KanbanSquare, Lock, MapPin } from 'lucide-react'
+import { isCardDone } from '@/features/boards/board-templates'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
@@ -40,7 +41,11 @@ interface Block {
   event?: CalendarEvent
   card?: BoardCard
   locked?: boolean
+  done?: boolean
 }
+
+/** Green: finished work reads as finished no matter what colour it started as. */
+const DONE_COLOR = '152 62% 47%'
 
 /**
  * The day/week timeline: real time blocking, where a two-hour task occupies
@@ -110,6 +115,7 @@ export function Timeline({
         if (task.cardId) continue
         if (!task.scheduledDate || !days.includes(task.scheduledDate) || !task.startTime) continue
         const start = toMinutes(task.startTime)
+        const done = task.status === 'done'
         out.push({
           kind: 'task',
           id: task.id,
@@ -117,9 +123,10 @@ export function Timeline({
           start,
           end: start + taskDuration(task, settings),
           title: task.title,
-          color: task.status === 'done' ? '152 62% 47%' : '250 82% 68%',
+          color: done ? DONE_COLOR : '250 82% 68%',
           task,
-          locked: task.pinned
+          locked: task.pinned,
+          done
         })
       }
     }
@@ -143,6 +150,9 @@ export function Timeline({
         if (!card.dueDate || !days.includes(card.dueDate) || !card.dueTime) continue
         const board = boards.find((b) => b.id === card.boardId)
         const start = toMinutes(card.dueTime)
+        // A card counts as done both by its own flag and by landing in a
+        // "done" column — the same rule the board itself uses.
+        const done = isCardDone(card, board?.columns ?? [])
         out.push({
           kind: 'card',
           id: card.id,
@@ -150,8 +160,9 @@ export function Timeline({
           start,
           end: start + (card.durationMinutes ?? 60),
           title: card.title,
-          color: board?.color ?? '270 80% 66%',
-          card
+          color: done ? DONE_COLOR : (board?.color ?? '270 80% 66%'),
+          card,
+          done
         })
       }
     }
@@ -243,16 +254,30 @@ export function Timeline({
                   day === today() && 'bg-primary/[0.04]'
                 )}
               >
-                {untimedByDay[i].map((card) => (
-                  <button
-                    key={card.id}
-                    onClick={() => onOpenCard?.(card)}
-                    className="no-drag block w-full truncate rounded-md bg-primary/15 px-1.5 py-1 text-left text-[10px] font-medium text-primary transition-colors hover:bg-primary/25"
-                    title={`${card.title} · entrega sem horário definido`}
-                  >
-                    {card.title}
-                  </button>
-                ))}
+                {untimedByDay[i].map((card) => {
+                  const done = isCardDone(
+                    card,
+                    boards.find((b) => b.id === card.boardId)?.columns ?? []
+                  )
+                  return (
+                    <button
+                      key={card.id}
+                      onClick={() => onOpenCard?.(card)}
+                      className={cn(
+                        'no-drag flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-[10px] font-medium transition-colors',
+                        done
+                          ? 'bg-success/15 text-success hover:bg-success/25'
+                          : 'bg-primary/15 text-primary hover:bg-primary/25'
+                      )}
+                      title={`${card.title} · entrega sem horário definido${done ? ' · concluído' : ''}`}
+                    >
+                      {done && <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />}
+                      <span className={cn('truncate', done && 'line-through opacity-80')}>
+                        {card.title}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             ))}
           </div>
@@ -451,6 +476,7 @@ function TimelineBlock({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: block.id })
   const minutes = block.end - block.start
   const width = 100 / lane.total
+  const range = `${fromMinutes(block.start)}–${fromMinutes(block.end)}`
 
   return (
     <div
@@ -467,29 +493,49 @@ function TimelineBlock({
         height: Math.max(16, minutes * PX_PER_MINUTE - 2),
         left: `calc(${lane.index * width}% + 3px)`,
         width: `calc(${width}% - 6px)`,
-        background: `hsl(${block.color} / 0.18)`,
+        background: `hsl(${block.color} / ${block.done ? 0.1 : 0.18})`,
         // A solid left edge reads as a colour code without shouting.
-        borderLeft: `3px solid hsl(${block.color})`
+        borderLeft: `3px solid hsl(${block.color})`,
+        opacity: block.done ? 0.75 : 1
       }}
+      title={`${block.title} · ${range}${block.done ? ' · concluído' : ''}`}
     >
       <div className="flex items-center gap-1 px-1.5 pt-1">
+        {block.done && (
+          <CheckCircle2
+            className="h-2.5 w-2.5 shrink-0"
+            style={{ color: `hsl(${DONE_COLOR})` }}
+          />
+        )}
         {block.locked && <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />}
-        {block.kind === 'card' && <KanbanSquare className="h-2.5 w-2.5 shrink-0 opacity-70" />}
+        {block.kind === 'card' && !block.done && (
+          <KanbanSquare className="h-2.5 w-2.5 shrink-0 opacity-70" />
+        )}
         {block.event?.icon && (
           <DynamicIcon name={block.event.icon} className="h-2.5 w-2.5 shrink-0 opacity-70" />
         )}
         <span
           className={cn(
             'truncate text-[11px] font-medium leading-tight',
-            block.task?.status === 'done' && 'line-through opacity-60'
+            block.done && 'line-through decoration-1 opacity-70'
           )}
         >
           {block.title}
         </span>
+        {/*
+          A short block has no room for a second line, and hiding the hour made
+          a 30-minute block look like a different kind of item entirely. Put it
+          on the same line instead of dropping it.
+        */}
+        {minutes < 30 && (
+          <span className="ml-auto shrink-0 text-[9px] tabular leading-tight text-muted-foreground">
+            {fromMinutes(block.start)}
+          </span>
+        )}
       </div>
-      {minutes >= 45 && (
+      {minutes >= 30 && (
         <p className="truncate px-1.5 text-[10px] tabular leading-tight text-muted-foreground">
-          {fromMinutes(block.start)}–{fromMinutes(block.end)}
+          {range}
         </p>
       )}
       {minutes >= 75 && block.event?.location && (
