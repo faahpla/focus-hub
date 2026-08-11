@@ -132,10 +132,23 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
       ids.forEach((id, order) => {
         const card = cardsById.get(id)
         if (card && (card.columnId !== columnId || card.order !== order)) {
-          // Moving to another lane hands the "done" state back to the column,
-          // so dragging out of Publicado un-finishes the card as expected.
+          /*
+            Only hand the "done" state back to the column when the card lands
+            in a column that decides it. Clearing the flag on *every* move
+            threw away a tick the user had just made by hand: marking a card
+            done and then dragging it to Publicados un-marked it.
+
+            A card whose done-ness came from its old column has no flag to
+            begin with, so dragging it back out still un-finishes it.
+          */
           const moved = card.columnId !== columnId
-          changed.push({ ...card, columnId, order, ...(moved ? { done: undefined } : {}) })
+          const landsInDoneColumn = columns.find((c) => c.id === columnId)?.done === true
+          changed.push({
+            ...card,
+            columnId,
+            order,
+            ...(moved && landsInDoneColumn ? { done: undefined } : {})
+          })
         }
       })
     }
