@@ -229,7 +229,11 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
           {/* Checklist (with drag-to-reorder) */}
           <div>
             <p className="mb-2 text-sm font-medium">Checklist</p>
-            <ChecklistPanel task={task} compact />
+            <ChecklistPanel
+              items={task.checklist}
+              onChange={(checklist) => void saveTask({ ...task, checklist })}
+              compact
+            />
           </div>
         </div>
 

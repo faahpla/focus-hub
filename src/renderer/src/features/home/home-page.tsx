@@ -36,6 +36,9 @@ import { cn } from '@/lib/utils'
 export function HomePage(): JSX.Element {
   const allProjects = useAppStore((s) => s.projects)
   const tasks = useAppStore((s) => s.tasks)
+  const cards = useAppStore((s) => s.cards)
+  const saveCard = useAppStore((s) => s.saveCard)
+  const saveTask = useAppStore((s) => s.saveTask)
   const stats = useAppStore((s) => s.stats)
   const projects = allProjects.filter((p) => !p.archived)
 
@@ -44,6 +47,7 @@ export function HomePage(): JSX.Element {
     phase,
     projectId,
     taskId,
+    cardId,
     taskTitle,
     plannedSeconds,
     focusedSeconds,
@@ -59,12 +63,16 @@ export function HomePage(): JSX.Element {
     .filter((t) => t.projectId === activeProject?.id && t.status !== 'done')
     .sort((a, b) => a.order - b.order)
   const activeTask = tasks.find((t) => t.id === taskId)
+  /** A session can also be focused on a card — the card *is* the work then. */
+  const activeCard = cards.find((c) => c.id === cardId)
 
   // Configure a default session on first load. Skipped when something already
   // configured the session (e.g. "Iniciar sessão" from a Kanban card), so we
   // don't overwrite the task the user actually picked.
   useEffect(() => {
-    if (phase === 'idle' && activeProject && !projectId) {
+    // A card session on a board with no project leaves projectId empty, so
+    // check the card too — otherwise arriving from "Focar" got overwritten.
+    if (phase === 'idle' && activeProject && !projectId && !cardId) {
       const task = projectTasks[0]
       session.configure({
         project: activeProject,
@@ -387,7 +395,27 @@ export function HomePage(): JSX.Element {
               <Maximize2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
             </button>
             <div className="min-h-0 flex-1">
-              <ChecklistPanel task={activeTask} />
+              <ChecklistPanel
+                items={activeTask.checklist}
+                onChange={(checklist) => void saveTask({ ...activeTask, checklist })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Focusing a card: the card is the work, its etapas are the checklist. */}
+        {!activeTask && activeCard && (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="rounded-2xl border border-border/70 bg-surface/60 p-3.5">
+              <p className="text-[11px] font-medium text-muted-foreground">Card atual</p>
+              <p className="truncate text-sm font-semibold">{activeCard.title}</p>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChecklistPanel
+                items={activeCard.checklist ?? []}
+                onChange={(checklist) => void saveCard({ ...activeCard, checklist })}
+                placeholder="Adicionar etapa…"
+              />
             </div>
           </div>
         )}

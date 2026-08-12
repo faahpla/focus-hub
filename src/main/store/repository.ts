@@ -267,6 +267,39 @@ export class Repository {
       delete card.taskId
       changed = true
     }
+
+    /*
+      A card's steps used to be real Tasks pointing at it — schedulable, with
+      dependencies, each one an item to manage. One video became six things to
+      track. The card is the task; its steps are a checklist you tick while
+      focusing on it.
+
+      Fold every card-owned task into its card's checklist and drop the task.
+      Titles and done state survive, so nothing the user typed is lost.
+    */
+    const owned = data.tasks.filter((t) => t.cardId)
+    if (owned.length > 0) {
+      for (const card of data.cards) {
+        const steps = owned
+          .filter((t) => t.cardId === card.id)
+          .sort((a, b) => a.order - b.order)
+        if (steps.length === 0) continue
+        const items = card.checklist ?? []
+        for (const step of steps) {
+          items.push({
+            id: step.id,
+            label: step.title,
+            done: step.status === 'done'
+          })
+          // A step could carry its own checklist; keep those lines too.
+          for (const sub of step.checklist ?? []) items.push({ ...sub, id: randomUUID() })
+        }
+        card.checklist = items
+      }
+      // Orphans (card already deleted) go too — they were invisible anyway.
+      data.tasks = data.tasks.filter((t) => !t.cardId)
+      changed = true
+    }
     if (changed) this.store.set('data', data)
   }
 

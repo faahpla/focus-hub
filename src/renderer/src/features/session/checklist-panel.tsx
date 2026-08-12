@@ -1,57 +1,67 @@
 import { useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { motion } from 'framer-motion'
-import type { Task } from '@shared/types'
+import type { ChecklistItem } from '@shared/types'
 import { SortableList, SortableItem, DragHandle } from '@/components/ui/sortable'
-import { useAppStore } from '@/stores/app-store'
 import { uid } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
-export function ChecklistPanel({ task, compact }: { task: Task; compact?: boolean }): JSX.Element {
-  const saveTask = useAppStore((s) => s.saveTask)
+/**
+ * A checklist, wherever it lives. Owned by a task or by a board card — the
+ * panel only knows about items and how to hand back a new list.
+ */
+export function ChecklistPanel({
+  items,
+  onChange,
+  compact,
+  placeholder = 'Adicionar item…',
+  /** Off when the surrounding block already titles the list and counts it. */
+  showHeader = true
+}: {
+  items: ChecklistItem[]
+  onChange: (items: ChecklistItem[]) => void
+  compact?: boolean
+  placeholder?: string
+  showHeader?: boolean
+}): JSX.Element {
   const [draft, setDraft] = useState('')
 
-  const done = task.checklist.filter((c) => c.done).length
-  const total = task.checklist.length
+  const done = items.filter((c) => c.done).length
+  const total = items.length
 
   const toggle = (id: string): void => {
-    void saveTask({
-      ...task,
-      checklist: task.checklist.map((c) => (c.id === id ? { ...c, done: !c.done } : c))
-    })
+    onChange(items.map((c) => (c.id === id ? { ...c, done: !c.done } : c)))
   }
 
   const add = (): void => {
     const label = draft.trim()
     if (!label) return
-    void saveTask({
-      ...task,
-      checklist: [...task.checklist, { id: uid(), label, done: false }]
-    })
+    onChange([...items, { id: uid(), label, done: false }])
     setDraft('')
   }
 
   const remove = (id: string): void => {
-    void saveTask({ ...task, checklist: task.checklist.filter((c) => c.id !== id) })
+    onChange(items.filter((c) => c.id !== id))
   }
 
   const reorder = (ids: string[]): void => {
-    const byId = new Map(task.checklist.map((c) => [c.id, c]))
-    const checklist = ids.map((id) => byId.get(id)).filter((c): c is NonNullable<typeof c> => !!c)
-    void saveTask({ ...task, checklist })
+    const byId = new Map(items.map((c) => [c.id, c]))
+    onChange(ids.map((id) => byId.get(id)).filter((c): c is ChecklistItem => !!c))
   }
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-surface/60 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Checklist</span>
-        <span className="text-xs tabular text-muted-foreground">
-          {done}/{total}
-        </span>
-      </div>
+      {showHeader && (
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Checklist</span>
+          <span className="text-xs tabular text-muted-foreground">
+            {done}/{total}
+          </span>
+        </div>
+      )}
       <div className={cn('flex-1 overflow-y-auto scrollbar-thin', compact && 'max-h-64')}>
-        <SortableList ids={task.checklist.map((c) => c.id)} onReorder={reorder}>
-          {task.checklist.map((item) => (
+        <SortableList ids={items.map((c) => c.id)} onReorder={reorder}>
+          {items.map((item) => (
             <SortableItem
               key={item.id}
               id={item.id}
@@ -105,7 +115,7 @@ export function ChecklistPanel({ task, compact }: { task: Task; compact?: boolea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
-          placeholder="Adicionar item…"
+          placeholder={placeholder}
           className="no-drag h-8 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
         />
         <button

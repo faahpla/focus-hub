@@ -184,6 +184,12 @@ export interface BoardCard {
   /** The long-form body — the script itself. Read in "Modo leitura". */
   notes?: string
   /**
+   * The idea of the video in a few lines. Shares the pane with the script
+   * behind a tab: they're read at different moments and stacking them would
+   * halve the room for both.
+   */
+  summary?: string
+  /**
    * Publish-ready title, kept apart from the card's own name. The card is
    * titled for finding it on the board; this is the one that gets copied into
    * YouTube, and the two are rarely the same string.
@@ -199,6 +205,14 @@ export interface BoardCard {
    * pasted somewhere else entirely.
    */
   pinnedComment?: string
+  /**
+   * The steps inside the deliverable, as a plain checklist.
+   *
+   * These used to be real Tasks pointing at the card, which turned one video
+   * into six schedulable items with dependencies and lock icons. A card *is*
+   * the task; its steps are just things to tick off while focusing on it.
+   */
+  checklist?: ChecklistItem[]
   assets: CardAsset[]
   tags: string[]
   /** Marked finished — either by hand or by landing in a "done" column. */
@@ -230,6 +244,8 @@ export interface Session {
   id: ID
   projectId?: ID
   taskId?: ID
+  /** Set when the session is focused on a board card instead of a task. */
+  cardId?: ID
   taskTitle: string
   plannedMinutes: number
   focusedSeconds: number

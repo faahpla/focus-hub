@@ -41,7 +41,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { useAppStore } from '@/stores/app-store'
-import type { Board, BoardCard, BoardColumn, Task } from '@shared/types'
+import type { Board, BoardCard, BoardColumn } from '@shared/types'
 import { COLUMN_COLORS, isCardDone, makeColumn } from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
@@ -78,7 +78,6 @@ const collisionDetection: CollisionDetection = (args) => {
 export function BoardView({ board }: { board: Board }): JSX.Element {
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null)
   const allCards = useAppStore((s) => s.cards)
-  const tasks = useAppStore((s) => s.tasks)
   const saveCard = useAppStore((s) => s.saveCard)
   const saveCards = useAppStore((s) => s.saveCards)
   const saveBoard = useAppStore((s) => s.saveBoard)
@@ -106,17 +105,6 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
   }, [columns, cards])
 
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
-  /** Tasks grouped by the card they help deliver — a card owns many now. */
-  const tasksByCard = useMemo(() => {
-    const map = new Map<string, Task[]>()
-    for (const task of tasks) {
-      if (!task.cardId) continue
-      const list = map.get(task.cardId) ?? []
-      list.push(task)
-      map.set(task.cardId, list)
-    }
-    return map
-  }, [tasks])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -285,7 +273,6 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               column={column}
               cardIds={lanes[column.id] ?? []}
               cardsById={cardsById}
-              tasksByCard={tasksByCard}
               canDelete={columns.length > 1}
               onAddCard={(title) => addCard(column.id, title)}
               onRename={(name) => patchColumn(column.id, { name })}
@@ -312,7 +299,6 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
             <div className="w-[264px] rotate-2">
               <CardBody
                 card={activeCard}
-                tasks={tasksByCard.get(activeCard.id) ?? []}
                 done={isCardDone(activeCard, columns)}
                 dragging
               />
@@ -347,7 +333,6 @@ function Column({
   column,
   cardIds,
   cardsById,
-  tasksByCard,
   canDelete,
   onAddCard,
   onRename,
@@ -362,7 +347,6 @@ function Column({
   column: BoardColumn
   cardIds: string[]
   cardsById: Map<string, BoardCard>
-  tasksByCard: Map<string, Task[]>
   canDelete: boolean
   onAddCard: (title: string) => void
   onRename: (name: string) => void
@@ -508,7 +492,6 @@ function Column({
                 <SortableCard
                   key={id}
                   card={card}
-                  tasks={tasksByCard.get(card.id) ?? []}
                   done={isCardDone(card, columns)}
                   onOpen={() => onOpenCard(id)}
                   onToggleDone={() => onToggleCardDone(id)}
@@ -582,14 +565,12 @@ function Column({
 
 function SortableCard({
   card,
-  tasks,
   done,
   onOpen,
   onToggleDone,
   onContextMenu
 }: {
   card: BoardCard
-  tasks: Task[]
   done: boolean
   onOpen: () => void
   onToggleDone: () => void
@@ -608,7 +589,7 @@ function SortableCard({
       onContextMenu={onContextMenu}
       className={cn('no-drag touch-none', isDragging && 'opacity-30')}
     >
-      <CardBody card={card} tasks={tasks} done={done} onToggleDone={onToggleDone} />
+      <CardBody card={card} done={done} onToggleDone={onToggleDone} />
     </div>
   )
 }
@@ -616,18 +597,17 @@ function SortableCard({
 /** The visual card. Shared by the list and the drag overlay. */
 function CardBody({
   card,
-  tasks,
   done,
   dragging,
   onToggleDone
 }: {
   card: BoardCard
-  tasks: Task[]
   done?: boolean
   dragging?: boolean
   onToggleDone?: () => void
 }): JSX.Element {
-  const doneTasks = tasks.filter((t) => t.status === 'done').length
+  const steps = card.checklist ?? []
+  const doneSteps = steps.filter((c) => c.done).length
   const assetCount = card.assets?.length ?? 0
   // A card is finished by its column or by hand — never by its tasks, since a
   // deliverable can have every step done and still be waiting to publish.
@@ -686,7 +666,7 @@ function CardBody({
         </p>
       )}
 
-      {(tasks.length > 0 || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
+      {(steps.length > 0 || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           {assetCount > 0 && (
             <span className="flex items-center gap-1 rounded-md bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -694,17 +674,17 @@ function CardBody({
               {assetCount}
             </span>
           )}
-          {tasks.length > 0 && (
+          {steps.length > 0 && (
             <span
               className={cn(
                 'flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
-                doneTasks === tasks.length
+                doneSteps === steps.length
                   ? 'bg-success/15 text-success'
                   : 'bg-primary/15 text-primary'
               )}
             >
               <ListChecks className="h-3 w-3" />
-              {doneTasks}/{tasks.length}
+              {doneSteps}/{steps.length}
             </span>
           )}
           {card.dueDate && (

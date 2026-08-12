@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
+  AlignLeft,
   CalendarPlus,
   Check,
   ChevronDown,
@@ -8,9 +10,11 @@ import {
   FileText,
   Folder,
   Hash,
+  ListChecks,
   Maximize2,
   MessageSquare,
   Paperclip,
+  Play,
   Star,
   Trash2,
   Type,
@@ -34,8 +38,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { addDaysToKey, dayLabel, today } from '@/lib/dates'
-import { CardTasksPanel } from '@/features/planner/components/card-tasks-panel'
+import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { useAppStore } from '@/stores/app-store'
+import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { isCardDone } from './board-templates'
@@ -96,15 +101,32 @@ function CardEditor({
 }): JSX.Element {
   const cardId = card.id
   const saveCard = useAppStore((s) => s.saveCard)
+  const projects = useAppStore((s) => s.projects)
+  const defaultMinutes = useAppStore((s) => s.settings.defaultDurationMinutes)
+  const configure = useSessionStore((s) => s.configure)
+  const navigate = useNavigate()
   const deleteCard = useAppStore((s) => s.deleteCard)
 
   const [tagDraft, setTagDraft] = useState('')
   const [readerOpen, setReaderOpen] = useState(false)
+  const [pane, setPane] = useState<'Roteiro' | 'Resumo'>('Roteiro')
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
 
   const assets = card.assets ?? []
+  const checklist = card.checklist ?? []
   const column = board.columns.find((c) => c.id === card.columnId)
   const finished = isCardDone(card, board.columns)
+
+  /** Take this card into a focus session — the card *is* the work. */
+  const focusOnCard = (): void => {
+    configure({
+      project: projects.find((p) => p.id === board.projectId),
+      card,
+      minutes: card.durationMinutes ?? defaultMinutes
+    })
+    onClose()
+    navigate('/foco')
+  }
 
   /**
    * Serialize writes and rebase each one on the freshest card from the store.
@@ -142,6 +164,9 @@ function CardEditor({
   )
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
+  )
+  const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
+    patch({ summary: next })
   )
 
   const addTag = (): void => {
@@ -315,37 +340,117 @@ function CardEditor({
           <div className="flex min-h-0 flex-1">
             {/* Script */}
             <div className="flex min-w-0 flex-1 flex-col p-6">
+              {/*
+                Two panes over the same space: the script and a short summary.
+                They're different lengths and read at different moments, so a
+                tab beats stacking them and halving the room for both.
+              */}
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
-                  <FileText className="h-4 w-4 text-muted-foreground" /> Roteiro
-                </p>
                 <div className="flex items-center gap-1">
-                  <CopyButton value={notes} />
-                  <button
-                    onClick={() => setReaderOpen(true)}
-                    className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
-                  >
-                    <Maximize2 className="h-3 w-3" /> Modo leitura
-                  </button>
+                  {(['Roteiro', 'Resumo'] as const).map((t) => {
+                    const filled = t === 'Roteiro' ? notes.trim() : summary.trim()
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setPane(t)}
+                        className={cn(
+                          'no-drag flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors',
+                          pane === t
+                            ? 'bg-surface-elevated text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {t === 'Roteiro' ? (
+                          <FileText className="h-4 w-4 opacity-70" />
+                        ) : (
+                          <AlignLeft className="h-4 w-4 opacity-70" />
+                        )}
+                        {t}
+                        {filled && pane !== t && (
+                          <span className="h-1 w-1 rounded-full bg-primary" />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-1">
+                  <CopyButton value={pane === 'Roteiro' ? notes : summary} />
+                  {pane === 'Roteiro' && (
+                    <button
+                      onClick={() => setReaderOpen(true)}
+                      className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                    >
+                      <Maximize2 className="h-3 w-3" /> Modo leitura
+                    </button>
+                  )}
                 </div>
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => notes !== (card.notes ?? '') && patch({ notes })}
-                placeholder="Escreva ou cole seu roteiro aqui…"
-                className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-              />
+              {pane === 'Roteiro' ? (
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={() => notes !== (card.notes ?? '') && patch({ notes })}
+                  placeholder="Escreva ou cole seu roteiro aqui…"
+                  className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+              ) : (
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  onBlur={() => summary !== (card.summary ?? '') && patch({ summary })}
+                  placeholder="Do que é este vídeo, em poucas linhas…"
+                  className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+              )}
               <p className="mt-2 text-[11px] text-muted-foreground">
-                {notes.trim() ? `${notes.trim().split(/\s+/).length} palavras` : 'Vazio'} · Modo
-                leitura abre em tela cheia com texto grande
+                {pane === 'Roteiro' ? (
+                  <>
+                    {notes.trim() ? `${notes.trim().split(/\s+/).length} palavras` : 'Vazio'} ·
+                    Modo leitura abre em tela cheia com texto grande
+                  </>
+                ) : (
+                  <>
+                    {summary.trim() ? `${summary.trim().length} caracteres` : 'Vazio'} · A ideia
+                    do vídeo em poucas linhas, para bater o olho e lembrar
+                  </>
+                )}
               </p>
             </div>
 
             {/* Side rail */}
             <div className="w-[340px] shrink-0 space-y-5 overflow-y-auto border-l border-border/70 p-5 scrollbar-thin">
-              {/* Tasks — a card is a deliverable made of several steps. */}
-              <CardTasksPanel card={card} board={board} onClose={onClose} />
+              {/*
+                Etapas as a plain checklist. This used to spawn one real Task
+                per step — schedulable, with dependencies and lock icons — which
+                turned a single video into six items to manage. The card is the
+                task; these are just things to tick while focusing on it.
+              */}
+              <div className="rounded-xl border border-border/70 bg-surface/40 p-3.5">
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <ListChecks className="h-4 w-4 text-primary" /> Etapas
+                    {checklist.length > 0 && (
+                      <span className="text-[11px] font-normal tabular text-muted-foreground">
+                        {checklist.filter((c) => c.done).length}/{checklist.length}
+                      </span>
+                    )}
+                  </p>
+                  <Button size="sm" variant="secondary" onClick={focusOnCard} className="h-7">
+                    <Play className="h-3.5 w-3.5" /> Focar
+                  </Button>
+                </div>
+                <ChecklistPanel
+                  items={checklist}
+                  onChange={(next) => patch({ checklist: next })}
+                  compact
+                  showHeader={false}
+                  placeholder="Adicionar etapa e Enter…"
+                />
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  O card é a tarefa. Quem vai para a Agenda é ele, com a data e a hora de
+                  entrega — as etapas você marca durante o foco.
+                </p>
+              </div>
 
               {/* Publish title — separate from the card's own name, which is
                   written to find it on the board, not to go on the video. */}

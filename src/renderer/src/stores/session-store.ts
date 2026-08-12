@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Achievement, FlowApplyResult, Project, Session, Task } from '@shared/types'
+import type { Achievement, BoardCard, FlowApplyResult, Project, Session, Task } from '@shared/types'
 import { flowIsEmpty, mergeFlow } from '@shared/flow'
 import { uid } from '@/lib/utils'
 import { todayKey } from '@/lib/format'
@@ -28,6 +28,8 @@ interface SessionState {
   phase: Phase
   projectId?: string
   taskId?: string
+  /** Set when focusing a board card — the card is the work, not a task. */
+  cardId?: string
   taskTitle: string
   plannedSeconds: number
   focusedSeconds: number
@@ -41,6 +43,7 @@ interface SessionState {
   configure: (opts: {
     project?: Project
     task?: Task
+    card?: BoardCard
     minutes: number
     taskTitle?: string
   }) => void
@@ -89,12 +92,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   notified: {},
   report: null,
 
-  configure: ({ project, task, minutes, taskTitle }) => {
+  configure: ({ project, task, card, minutes, taskTitle }) => {
     if (get().phase === 'running') return
     set({
       projectId: project?.id,
       taskId: task?.id,
-      taskTitle: taskTitle || task?.title || project?.name || 'Sessão de Foco',
+      cardId: card?.id,
+      taskTitle: taskTitle || task?.title || card?.title || project?.name || 'Sessão de Foco',
       plannedSeconds: Math.round(minutes * 60),
       focusedSeconds: 0,
       phase: 'idle',
@@ -214,6 +218,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       id: uid(),
       projectId: state.projectId,
       taskId: state.taskId,
+      cardId: state.cardId,
       taskTitle: state.taskTitle,
       plannedMinutes: Math.round(state.plannedSeconds / 60),
       focusedSeconds,
@@ -237,6 +242,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           actualMinutes: task.actualMinutes + Math.round(focusedSeconds / 60)
         })
       }
+    } else if (state.cardId) {
+      const card = useAppStore.getState().cards.find((c) => c.id === state.cardId)
+      const list = card?.checklist ?? []
+      checklistTotal = list.length
+      checklistDone = list.filter((c) => c.done).length
     }
 
     // Snapshot stats before recording so we can compute the gains.
