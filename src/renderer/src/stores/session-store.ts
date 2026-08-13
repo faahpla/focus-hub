@@ -294,16 +294,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (focusedSeconds <= 5) {
       set({ phase: 'idle', focusedSeconds: 0, ultraFocus: false, notified: {} })
     }
+    // Belt and braces: the window must never stay pinned on top once the
+    // session is over, whatever path got us here.
+    window.focusHub.setUltraFocus(false)
   },
 
   reset: () => {
     clearTimer()
-    set({ phase: 'idle', focusedSeconds: 0, ultraFocus: false, notified: {} })
+    get().setUltraFocus(false)
+    set({ phase: 'idle', focusedSeconds: 0, notified: {} })
   },
 
   dismissReport: () => {
     clearTimer()
-    set({ phase: 'idle', focusedSeconds: 0, ultraFocus: false, notified: {}, report: null })
+    // Through setUltraFocus, never `set({ ultraFocus: false })` on its own: the
+    // flag also drives setFullScreen/setAlwaysOnTop on the real window. Setting
+    // it directly left the window pinned above everything else — including
+    // whatever the OS wants to draw on top of it.
+    get().setUltraFocus(false)
+    set({ phase: 'idle', focusedSeconds: 0, notified: {}, report: null })
   },
 
   setUltraFocus: (v) => {

@@ -108,7 +108,16 @@ export function HomePage(): JSX.Element {
 
   const setDuration = (m: number): void => {
     setMinutes(m)
-    session.configure({ project: activeProject, task: activeTask, minutes: m })
+    // Carry the card through. Without it, changing the duration reconfigured
+    // the session from scratch and quietly dropped the card you were about to
+    // focus on — the title fell back to the project and the checklist vanished.
+    session.configure({
+      project: activeProject,
+      task: activeTask,
+      card: activeCard,
+      minutes: m,
+      taskTitle: !activeTask && activeCard ? activeCard.title : undefined
+    })
   }
 
   return (

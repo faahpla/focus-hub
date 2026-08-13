@@ -223,8 +223,16 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
   ipcMain.on(IPC.WIN_ULTRA, (e, enabled: boolean) => {
     const win = fromEvent(e)
     if (!win) return
+    /*
+      Fullscreen only — deliberately not alwaysOnTop.
+
+      Fullscreen already gives Ultra Focus what it's for: nothing else on
+      screen. Always-on-top added nothing on top of that except a fight with
+      the OS, sitting above the Snipping Tool overlay so you couldn't screenshot
+      the app while a session was running.
+    */
     win.setFullScreen(enabled)
-    win.setAlwaysOnTop(enabled)
+    if (!enabled) win.setAlwaysOnTop(false)
   })
 
   // ---- Quick capture ----
