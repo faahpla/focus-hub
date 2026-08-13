@@ -20,7 +20,9 @@ export function UltraFocusOverlay(): JSX.Element {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background drag"
+          // Same reason as the session report: a Radix dialog underneath would
+          // otherwise neutralise every control in here.
+          className="pointer-events-auto fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background drag"
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
 

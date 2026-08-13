@@ -40,7 +40,15 @@ export function SessionReportOverlay(): JSX.Element {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
+          /*
+            pointer-events must be stated, not inherited. A Radix dialog open
+            underneath (reading a card's script during the session) sets
+            `pointer-events: none` on <body> to block the rest of the screen —
+            and this overlay, being a sibling, inherited the block. The report
+            showed up and every click fell through to the dialog behind it, so
+            the whole app looked frozen.
+          */
+          className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
         >
           {/* soft celebratory glow */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
