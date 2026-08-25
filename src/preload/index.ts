@@ -70,6 +70,7 @@ const api: FocusHubApi = {
   openPath: (value: string) => ipcRenderer.invoke(IPC.OPEN_PATH, value),
 
   minimize: () => ipcRenderer.send(IPC.WIN_MINIMIZE),
+  captureWindow: () => ipcRenderer.invoke(IPC.WIN_CAPTURE),
   toggleMaximize: () => ipcRenderer.send(IPC.WIN_MAXIMIZE),
   close: () => ipcRenderer.send(IPC.WIN_CLOSE),
   setUltraFocus: (enabled: boolean) => ipcRenderer.send(IPC.WIN_ULTRA, enabled),

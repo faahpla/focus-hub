@@ -1,5 +1,6 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
 import { IPC } from '../../shared/ipc'
 import type {
   AppData,
@@ -210,8 +211,9 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
   })
 
   // ---- Window controls ----
-  const fromEvent = (e: Electron.IpcMainEvent): BrowserWindow | null =>
-    BrowserWindow.fromWebContents(e.sender)
+  const fromEvent = (
+    e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent
+  ): BrowserWindow | null => BrowserWindow.fromWebContents(e.sender)
 
   ipcMain.on(IPC.WIN_MINIMIZE, (e) => fromEvent(e)?.minimize())
   ipcMain.on(IPC.WIN_MAXIMIZE, (e) => {
@@ -220,6 +222,31 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
     win.isMaximized() ? win.unmaximize() : win.maximize()
   })
   ipcMain.on(IPC.WIN_CLOSE, (e) => fromEvent(e)?.close())
+
+  /*
+    Screenshot the app from inside the app.
+
+    Windows' own capture tools depend on an overlay that, on some machines,
+    never appears while this window has focus — leaving no way to grab a
+    picture of it at all. capturePage() asks the renderer for its own pixels,
+    so it works regardless of what the desktop is doing.
+  */
+  ipcMain.handle(IPC.WIN_CAPTURE, async (e) => {
+    const win = fromEvent(e)
+    if (!win) return null
+    try {
+      const image = await win.webContents.capturePage()
+      clipboard.writeImage(image)
+      const dir = join(app.getPath('pictures'), 'Focus HUB')
+      await fs.mkdir(dir, { recursive: true })
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const file = join(dir, `focus-hub-${stamp}.png`)
+      await fs.writeFile(file, image.toPNG())
+      return file
+    } catch {
+      return null
+    }
+  })
   ipcMain.on(IPC.WIN_ULTRA, (e, enabled: boolean) => {
     const win = fromEvent(e)
     if (!win) return

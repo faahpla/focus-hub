@@ -81,6 +81,7 @@ export const IPC = {
   WIN_MINIMIZE: 'win:minimize',
   WIN_MAXIMIZE: 'win:maximize',
   WIN_CLOSE: 'win:close',
+  WIN_CAPTURE: 'win:capture',
   WIN_ULTRA: 'win:ultraFocus',
 
   // Quick capture (main -> renderer + renderer -> main)
@@ -156,6 +157,11 @@ export interface FocusHubApi {
   minimize(): void
   toggleMaximize(): void
   close(): void
+  /**
+   * Screenshot the app's own window. Goes to the clipboard and to a PNG in
+   * Imagens/Focus HUB. Returns the file path, or null if it could not be saved.
+   */
+  captureWindow(): Promise<string | null>
   setUltraFocus(enabled: boolean): void
 
   saveQuickIdea(content: string): Promise<void>
