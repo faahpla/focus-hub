@@ -9,8 +9,8 @@ import {
   ExternalLink,
   FileText,
   Folder,
-  Hash,
   ListChecks,
+  Plus,
   Maximize2,
   MessageSquare,
   Paperclip,
@@ -37,6 +37,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
+import { TimeField } from '@/components/ui/time-field'
 import { addDaysToKey, dayLabel, today } from '@/lib/dates'
 import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { useAppStore } from '@/stores/app-store'
@@ -159,9 +160,6 @@ function CardEditor({
   const [description, setDescription] = useAutosavedText(card.description ?? '', (next) =>
     patch({ description: next })
   )
-  const [hashtags, setHashtags] = useAutosavedText(card.hashtags ?? '', (next) =>
-    patch({ hashtags: next })
-  )
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
   )
@@ -214,7 +212,7 @@ function CardEditor({
             <DialogHeader className="mb-0">
               <DialogTitle className="sr-only">Editar card</DialogTitle>
               <DialogDescription className="sr-only">
-                Edite o roteiro, a descrição, as hashtags e os assets do card.
+                Edite o roteiro, o resumo, a descrição e os assets do card.
               </DialogDescription>
             </DialogHeader>
             <div className="flex items-start gap-3">
@@ -446,10 +444,14 @@ function CardEditor({
                   showHeader={false}
                   placeholder="Adicionar etapa e Enter…"
                 />
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  O card é a tarefa. Quem vai para a Agenda é ele, com a data e a hora de
-                  entrega — as etapas você marca durante o foco.
-                </p>
+                <StepPresets
+                  current={checklist.map((c) => c.label)}
+                  onPick={(label) =>
+                    patchWith((c) => ({
+                      checklist: [...(c.checklist ?? []), { id: uid(), label, done: false }]
+                    }))
+                  }
+                />
               </div>
 
               {/* Publish title — separate from the card's own name, which is
@@ -457,10 +459,7 @@ function CardEditor({
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título
-                    <span className="text-[11px] font-normal text-muted-foreground">
-                      opcional
-                    </span>
+                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título TikTok
                   </p>
                   <CopyButton value={publishTitle} />
                 </div>
@@ -471,7 +470,7 @@ function CardEditor({
                     publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
                   }
                   placeholder="O título que vai no vídeo…"
-                  rows={2}
+                  rows={10}
                   className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
                 {publishTitle.trim() && (
@@ -500,22 +499,6 @@ function CardEditor({
                 />
               </div>
 
-              {/* Hashtags */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <Hash className="h-3.5 w-3.5 text-muted-foreground" /> Hashtags
-                  </p>
-                  <CopyButton value={hashtags} />
-                </div>
-                <textarea
-                  value={hashtags}
-                  onChange={(e) => setHashtags(e.target.value)}
-                  onBlur={() => hashtags !== (card.hashtags ?? '') && patch({ hashtags })}
-                  placeholder="#tensura #anime #shorts"
-                  className="no-drag min-h-[64px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              </div>
 
               {/* Assets */}
               <div>
@@ -610,12 +593,11 @@ function CardEditor({
                 <DatePicker value={card.dueDate} onChange={(next) => patch({ dueDate: next })} />
 
                 <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={card.dueTime ?? ''}
+                  <TimeField
+                    value={card.dueTime}
                     disabled={!card.dueDate}
-                    onChange={(e) => patch({ dueTime: e.target.value || undefined })}
-                    className="no-drag h-9 flex-1 rounded-xl border border-input bg-surface/60 px-3 text-sm tabular focus:border-primary/60 focus:outline-none disabled:opacity-40"
+                    onChange={(dueTime) => patch({ dueTime })}
+                    className="flex-1"
                   />
                   <select
                     value={card.durationMinutes ?? 60}
@@ -869,6 +851,101 @@ function TagPresets({
             className="h-8 text-xs"
           />
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * One-click steps for a repeating production flow.
+ *
+ * Same idea as the tag presets: a pinned list you control, plus whatever you
+ * already use on other cards, ordered by how often. Typing "Gravação" on every
+ * single card is exactly the sort of friction this app exists to remove.
+ */
+function StepPresets({
+  current,
+  onPick
+}: {
+  current: string[]
+  onPick: (label: string) => void
+}): JSX.Element | null {
+  const cards = useAppStore((s) => s.cards)
+  const presets = useAppStore((s) => s.settings.cardStepPresets)
+  const saveSettings = useAppStore((s) => s.saveSettings)
+  const [managing, setManaging] = useState(false)
+
+  const used = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const card of cards) {
+      for (const step of card.checklist ?? []) {
+        counts.set(step.label, (counts.get(step.label) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+      .map(([label]) => label)
+  }, [cards])
+
+  const pinned = presets.filter((p) => !current.includes(p))
+  const suggestions = used
+    .filter((u) => !current.includes(u) && !presets.includes(u))
+    .slice(0, 6)
+
+  if (pinned.length === 0 && suggestions.length === 0 && !managing) {
+    return (
+      <button
+        onClick={() => setManaging(true)}
+        className="no-drag mt-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        Editar etapas fixas
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap gap-1.5">
+        {pinned.map((label) => (
+          <button
+            key={label}
+            onClick={() => onPick(label)}
+            className="no-drag flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary/20"
+          >
+            <Plus className="h-2.5 w-2.5" />
+            {label}
+          </button>
+        ))}
+        {suggestions.map((label) => (
+          <button
+            key={label}
+            onClick={() => onPick(label)}
+            className="no-drag rounded-lg border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setManaging((m) => !m)}
+        className="no-drag mt-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {managing ? 'Fechar' : 'Editar fixas'}
+      </button>
+      {managing && (
+        <input
+          defaultValue={presets.join(', ')}
+          onBlur={(e) =>
+            void saveSettings({
+              cardStepPresets: e.target.value
+                .split(',')
+                .map((v) => v.trim())
+                .filter(Boolean)
+            })
+          }
+          placeholder="Roteiro, Gravação, Edição…"
+          className="no-drag mt-1 h-8 w-full rounded-lg border border-input bg-surface/60 px-2 text-[11px] focus:border-primary/60 focus:outline-none"
+        />
       )}
     </div>
   )

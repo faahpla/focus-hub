@@ -23,6 +23,9 @@ import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../sha
 import { DEFAULT_PLANNER_SETTINGS } from '../../shared/planner'
 import { emptyFlow } from '../../shared/flow'
 
+/** The steps a video actually goes through — offered as one-click chips. */
+const DEFAULT_STEP_PRESETS = ['Roteiro', 'Gravação', 'Edição', 'Thumb', 'Publicar']
+
 const now = (): string => new Date().toISOString()
 const today = (): string => new Date().toISOString().slice(0, 10)
 
@@ -40,6 +43,7 @@ const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
   musicSources: [],
   cardTagPresets: [],
+  cardStepPresets: [...DEFAULT_STEP_PRESETS],
   flow: emptyFlow(),
   alwaysElevate: false
 }
@@ -172,6 +176,10 @@ export class Repository {
     }
     if (data.settings && !Array.isArray(data.settings.cardTagPresets)) {
       data.settings.cardTagPresets = []
+      changed = true
+    }
+    if (data.settings && !Array.isArray(data.settings.cardStepPresets)) {
+      data.settings.cardStepPresets = [...DEFAULT_STEP_PRESETS]
       changed = true
     }
     // Flow used to exist only inside projects, so a session without one did

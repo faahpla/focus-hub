@@ -303,6 +303,8 @@ export interface Settings {
   musicSources: MusicSource[]
   /** One-click tags offered on every card, so recurring ones aren't retyped. */
   cardTagPresets: string[]
+  /** One-click steps offered on every card, for a repeating production flow. */
+  cardStepPresets: string[]
   /**
    * Flow settings that apply to every session, with or without a project.
    * A project's own Flow is layered on top of this one (see shared/flow.ts).

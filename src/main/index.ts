@@ -14,6 +14,17 @@ import appIcon from '../../resources/icon.png?asset'
 // Must run before the app "ready" event.
 registerAppScheme()
 
+/*
+  Keep painting even when Windows thinks the window is hidden.
+
+  Chromium's native occlusion detection stops rendering a window it believes is
+  covered. The Snipping Tool draws a full-screen overlay before it captures, so
+  Chromium marks the window occluded, stops painting, and the capture comes out
+  empty — the app looks like it refuses to be screenshotted. Clicking the
+  taskbar forced a repaint, which is why that worked around it.
+*/
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
 /**
  * Run against an isolated data folder when FOCUS_HUB_PROFILE is set.
  *

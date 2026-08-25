@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DatePicker } from '@/components/ui/date-picker'
+import { TimeField } from '@/components/ui/time-field'
 import { useAppStore } from '@/stores/app-store'
 import { uid } from '@/lib/utils'
 import type { CalendarEvent } from '@shared/planner'
@@ -86,12 +87,11 @@ export function EventDialog({
               />
             </Field>
             <Field label="Início">
-              <Input
-                type="time"
+              <TimeField
                 disabled={draft.allDay}
                 value={draft.startTime}
-                onChange={(e) => {
-                  const startTime = e.target.value || '09:00'
+                onChange={(v) => {
+                  const startTime = v || '09:00'
                   // Keep the duration when the start moves, instead of letting
                   // the end fall behind it and produce a negative event.
                   const length = Math.max(
@@ -100,16 +100,13 @@ export function EventDialog({
                   )
                   patch({ startTime, endTime: addMinutes(startTime, length) })
                 }}
-                className="tabular"
               />
             </Field>
             <Field label="Fim">
-              <Input
-                type="time"
+              <TimeField
                 disabled={draft.allDay}
                 value={draft.endTime}
-                onChange={(e) => patch({ endTime: e.target.value || draft.endTime })}
-                className="tabular"
+                onChange={(v) => patch({ endTime: v || draft.endTime })}
               />
             </Field>
           </div>

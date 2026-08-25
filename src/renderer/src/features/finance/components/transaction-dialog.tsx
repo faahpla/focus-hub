@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
+import { TimeField } from '@/components/ui/time-field'
 import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
 import { uid } from '@/lib/utils'
@@ -264,12 +265,7 @@ export function TransactionDialog({
             />
           </Field>
           <Field label="Hora">
-            <Input
-              type="time"
-              value={draft.time ?? ''}
-              onChange={(e) => patch({ time: e.target.value || undefined })}
-              className="tabular"
-            />
+            <TimeField value={draft.time} onChange={(time) => patch({ time })} />
           </Field>
 
           {isNew && !isTransfer && (

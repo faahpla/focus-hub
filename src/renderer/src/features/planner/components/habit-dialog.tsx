@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { TimeField } from '@/components/ui/time-field'
 import { useAppStore } from '@/stores/app-store'
 import { uid, cn } from '@/lib/utils'
 import type { Habit, HabitFrequency } from '@shared/planner'
@@ -98,11 +99,9 @@ export function HabitDialog({
               </Field>
             ) : (
               <Field label="Horário sugerido">
-                <Input
-                  type="time"
-                  value={draft.timeOfDay ?? ''}
-                  onChange={(e) => patch({ timeOfDay: e.target.value || undefined })}
-                  className="tabular"
+                <TimeField
+                  value={draft.timeOfDay}
+                  onChange={(timeOfDay) => patch({ timeOfDay })}
                 />
               </Field>
             )}

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { CalendarDays, Flame, Lock, Pin, Plus, Target, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
+import { TimeField } from '@/components/ui/time-field'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
@@ -92,12 +92,11 @@ export function PlanningSection({ task }: { task: Task }): JSX.Element {
 
         <label className="block">
           <span className="mb-1.5 block text-xs text-muted-foreground">Horário</span>
-          <Input
-            type="time"
-            value={task.startTime ?? ''}
+          <TimeField
+            value={task.startTime}
             disabled={!task.scheduledDate}
-            onChange={(e) => patch({ startTime: e.target.value || undefined, pinned: true })}
-            className="h-10 tabular"
+            onChange={(startTime) => patch({ startTime, pinned: true })}
+            className="h-10"
           />
         </label>
 
