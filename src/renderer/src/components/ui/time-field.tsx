@@ -115,7 +115,7 @@ export function TimeField({
   return (
     <div
       className={cn(
-        'no-drag flex h-9 items-center rounded-xl border border-input bg-surface/60 transition-colors focus-within:border-primary/60',
+        'no-drag flex h-9 min-w-0 items-center rounded-xl border border-input bg-surface/60 transition-colors focus-within:border-primary/60',
         disabled && 'pointer-events-none opacity-40',
         className
       )}
@@ -141,7 +141,7 @@ export function TimeField({
         <button
           onClick={() => onChange(undefined)}
           title="Limpar horário"
-          className="flex h-full w-7 items-center justify-center text-muted-foreground/60 transition-colors hover:text-destructive"
+          className="flex h-full w-7 shrink-0 items-center justify-center text-muted-foreground/60 transition-colors hover:text-destructive"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -151,7 +151,7 @@ export function TimeField({
           <button
             disabled={disabled}
             title="Escolher horário"
-            className="flex h-full w-9 items-center justify-center rounded-r-xl text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+            className="flex h-full w-9 shrink-0 items-center justify-center rounded-r-xl text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
           >
             <Clock className="h-4 w-4" />
           </button>

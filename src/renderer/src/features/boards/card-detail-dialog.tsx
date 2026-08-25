@@ -416,7 +416,7 @@ function CardEditor({
             </div>
 
             {/* Side rail */}
-            <div className="w-[340px] shrink-0 space-y-5 overflow-y-auto border-l border-border/70 p-5 scrollbar-thin">
+            <div className="w-[340px] shrink-0 space-y-5 overflow-y-auto overflow-x-hidden border-l border-border/70 p-5 scrollbar-thin">
               {/*
                 Etapas as a plain checklist. This used to spawn one real Task
                 per step — schedulable, with dependencies and lock icons — which
@@ -603,7 +603,7 @@ function CardEditor({
                     value={card.durationMinutes ?? 60}
                     disabled={!card.dueDate}
                     onChange={(e) => patch({ durationMinutes: Number(e.target.value) })}
-                    className="no-drag h-9 rounded-xl border border-input bg-surface/60 px-2 text-xs focus:border-primary/60 focus:outline-none disabled:opacity-40"
+                    className="no-drag h-9 shrink-0 rounded-xl border border-input bg-surface/60 px-2 text-xs focus:border-primary/60 focus:outline-none disabled:opacity-40"
                   >
                     {[30, 60, 90, 120, 180, 240].map((m) => (
                       <option key={m} value={m}>
