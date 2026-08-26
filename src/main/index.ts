@@ -1,5 +1,6 @@
-import { app, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
+import { app, dialog, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
 import { spawn } from 'node:child_process'
+import { statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
@@ -116,11 +117,59 @@ function registerShortcuts(): void {
   )
 }
 
+/**
+ * Proof that the running instance heard us.
+ *
+ * A second launch normally just tells the first one to show its window and
+ * exits. But when the running copy was started as administrator and this one
+ * wasn't, Windows refuses to deliver that message between them: nothing
+ * surfaces, this process quits, and the app simply appears not to open —
+ * unless you also start it as administrator. The running instance touches this
+ * file when it gets the message, so a launch that goes unheard can say so
+ * instead of vanishing.
+ */
+const HANDOFF = join(app.getPath('userData'), 'second-instance.ping')
+
+function pingedAt(): number {
+  try {
+    return statSync(HANDOFF).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+// Snapshot *before* asking for the lock: requesting it is what makes the other
+// instance answer, and it can answer within milliseconds. Reading afterwards
+// races against that reply and reports a healthy hand-off as a failed one.
+const pingBefore = pingedAt()
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
-  app.quit()
+  app.whenReady().then(async () => {
+    // Give the running instance a moment to answer.
+    await new Promise((r) => setTimeout(r, 1500))
+    if (pingedAt() === pingBefore) {
+      const elevatedHere = await flow.isElevated()
+      dialog.showMessageBoxSync({
+        type: 'warning',
+        title: 'Focus HUB já está aberto',
+        message: 'O Focus HUB já está em execução, mas não respondeu.',
+        detail: elevatedHere
+          ? 'A cópia aberta parece estar sem privilégios de administrador, e o Windows não deixa as duas conversarem.\n\nAbra pelo ícone na bandeja, ao lado do relógio — ou feche por lá (botão direito › Sair) e abra de novo.'
+          : 'A cópia aberta provavelmente foi iniciada como administrador, e o Windows não deixa uma janela comum falar com ela.\n\nClique no ícone do Focus HUB na bandeja, ao lado do relógio, para trazê-la de volta — ou feche por lá (botão direito › Sair) e abra normalmente.',
+        buttons: ['Entendi']
+      })
+    }
+    app.quit()
+  })
 } else {
-  app.on('second-instance', () => windows.showMain())
+  app.on('second-instance', () => {
+    windows.showMain()
+    try {
+      writeFileSync(HANDOFF, String(Date.now()))
+    } catch {
+      /* the ping is a courtesy; never let it break showing the window */
+    }
+  })
 
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.faah.focushub')
