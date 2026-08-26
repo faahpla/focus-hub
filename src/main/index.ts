@@ -241,11 +241,13 @@ if (!gotLock) {
       }
     }
 
+    logLaunch('  etapa: limpando bloqueio de sites')
     // A crash mid-session would leave the hosts block in place forever.
     void flow.cleanupStale()
 
     // Serve the built renderer over app://local/* whenever we're not using the
     // Vite dev server (covers the packaged app and the built output directly).
+    logLaunch('  etapa: servindo o conteudo')
     if (!process.env['ELECTRON_RENDERER_URL']) serveRenderer(join(__dirname, '../renderer'))
 
     // Images the user picked (goal covers) — see register-protocol for why.
@@ -253,6 +255,7 @@ if (!gotLock) {
 
     // Rolling snapshots: one at startup, then every 10 minutes while the app
     // is open (no-ops when nothing changed), plus one on the way out.
+    logLaunch('  etapa: backups')
     const backups = new BackupService(app.getPath('userData'))
     backups.snapshot(repo.getAll(), 'ao abrir o app')
     setInterval(() => backups.snapshot(repo.getAll(), 'automático'), 10 * 60 * 1000)
@@ -275,7 +278,35 @@ if (!gotLock) {
       })
     )
 
+    logLaunch('  etapa: criando a janela')
     const win = windows.createMain()
+
+    /*
+      Last-resort show.
+
+      The window only reveals itself on 'ready-to-show', which never fires if
+      the page fails to load. That leaves a running process with no window at
+      all — the app looks like it simply refuses to open, and the only way out
+      is the task manager. Show it anyway after a few seconds: an empty window
+      is recoverable, an invisible one is not.
+    */
+    let shown = false
+    win.once('ready-to-show', () => {
+      shown = true
+      logLaunch('  etapa: janela visivel')
+    })
+    setTimeout(() => {
+      if (shown || win.isDestroyed()) return
+      logLaunch('  ALERTA: o conteudo nao carregou, mostrando a janela assim mesmo')
+      win.show()
+    }, 8000)
+
+    win.webContents.on('did-fail-load', (_e, code, desc, url) =>
+      logLaunch(`  FALHA ao carregar: ${code} ${desc} ${url}`)
+    )
+    win.webContents.on('render-process-gone', (_e, details) =>
+      logLaunch(`  FALHA: o conteudo travou (${details.reason})`)
+    )
     win.on('close', (e) => {
       if (!isQuitting && repo.getAll().settings.minimizeToTray) {
         e.preventDefault()
@@ -283,8 +314,10 @@ if (!gotLock) {
       }
     })
 
+    logLaunch('  etapa: bandeja e atalhos')
     buildTray()
     registerShortcuts()
+    logLaunch('  etapa: inicializacao concluida')
 
     // Auto-update from GitHub Releases (installed app only). Give the window a
     // moment so the renderer is listening when the first status arrives.
@@ -306,4 +339,8 @@ if (!gotLock) {
   })
 
   app.on('will-quit', () => globalShortcut.unregisterAll())
+  app.on('quit', (_e, code) => logLaunch(`fechou | codigo=${code}`))
+  process.on('uncaughtException', (err) => {
+    logLaunch(`ERRO NAO TRATADO: ${err?.message ?? err}`)
+  })
 }
