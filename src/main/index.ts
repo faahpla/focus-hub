@@ -1,6 +1,6 @@
 import { app, dialog, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
 import { spawn } from 'node:child_process'
-import { statSync, writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
@@ -154,6 +154,32 @@ function registerShortcuts(): void {
  * file when it gets the message, so a launch that goes unheard can say so
  * instead of vanishing.
  */
+/**
+ * A line per launch, so a failure that cannot be reproduced still leaves
+ * evidence. "It doesn't open" is impossible to debug from a description; this
+ * turns it into a fact: was it elevated, did it get the single-instance lock,
+ * did the running copy answer.
+ */
+const LAUNCH_LOG = join(app.getPath('userData'), 'aberturas.log')
+
+function logLaunch(line: string): void {
+  try {
+    const stamp = new Date().toLocaleString('pt-BR')
+    let previous = ''
+    try {
+      previous = readFileSync(LAUNCH_LOG, 'utf8')
+    } catch {
+      /* first launch */
+    }
+    // Keep it short — this is a breadcrumb trail, not an archive.
+    const kept = previous.split('\n').filter(Boolean).slice(-200)
+    kept.push(`${stamp}  ${line}`)
+    writeFileSync(LAUNCH_LOG, kept.join('\n') + '\n')
+  } catch {
+    /* logging must never be the reason the app fails to start */
+  }
+}
+
 const HANDOFF = join(app.getPath('userData'), 'second-instance.ping')
 
 function pingedAt(): number {
@@ -173,8 +199,12 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     // Give the running instance a moment to answer.
     await new Promise((r) => setTimeout(r, 1500))
-    if (pingedAt() === pingBefore) {
-      const elevatedHere = await flow.isElevated()
+    const answered = pingedAt() !== pingBefore
+    const elevatedHere = await flow.isElevated()
+    logLaunch(
+      `2a instancia | admin=${elevatedHere} | a copia aberta respondeu=${answered}`
+    )
+    if (!answered) {
       dialog.showMessageBoxSync({
         type: 'warning',
         title: 'Focus HUB já está aberto',
@@ -199,6 +229,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.faah.focushub')
+    logLaunch(`abriu | admin=${await flow.isElevated()} | empacotado=${app.isPackaged}`)
 
     // Auto-elevate on launch when the user opted in (installed app only, so we
     // never disrupt the dev workflow). One UAC prompt, then site blocking works.
