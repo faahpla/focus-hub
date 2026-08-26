@@ -60,6 +60,7 @@ const api: FocusHubApi = {
   isElevated: () => ipcRenderer.invoke(IPC.FLOW_IS_ELEVATED),
   getAppInfo: () => ipcRenderer.invoke(IPC.APP_GET_INFO),
   relaunchElevated: () => ipcRenderer.send(IPC.APP_RELAUNCH_ELEVATED),
+  relaunchNormal: () => ipcRenderer.send(IPC.APP_RELAUNCH_NORMAL),
 
   getUpdateStatus: () => ipcRenderer.invoke(IPC.UPDATE_GET_STATUS),
   checkForUpdate: () => ipcRenderer.invoke(IPC.UPDATE_CHECK),

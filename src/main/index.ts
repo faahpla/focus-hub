@@ -109,6 +109,32 @@ function relaunchElevated(): void {
   app.quit()
 }
 
+/**
+ * Close the app so it can be reopened normally.
+ *
+ * Deliberately not a relaunch: a process cannot lower its own token, and every
+ * indirect route out of an elevated process — spawning explorer.exe, the
+ * Shell.Application COM object, runas /trustlevel — was measured here and came
+ * back elevated all the same. Quitting and letting the user open the shortcut
+ * is the only honest way down.
+ */
+function quitForNormalRestart(): void {
+  const answer = dialog.showMessageBoxSync({
+    type: 'question',
+    title: 'Sair do modo administrador',
+    message: 'Fechar o Focus HUB agora?',
+    detail:
+      'Como administrador, o Windows não deixa a Ferramenta de Recorte aparecer sobre esta janela, e abrir o app de novo pelo atalho não traz esta janela de volta.\n\n' +
+      'Não dá para baixar o privilégio sem reiniciar o app. Feche aqui e abra pelo atalho normalmente (sem botão direito › Executar como administrador).',
+    buttons: ['Fechar agora', 'Cancelar'],
+    defaultId: 0,
+    cancelId: 1
+  })
+  if (answer !== 0) return
+  isQuitting = true
+  app.quit()
+}
+
 function registerShortcuts(): void {
   const shortcut = repo.getAll().settings.quickCaptureShortcut || 'CommandOrControl+Shift+Space'
   globalShortcut.register(shortcut, () => windows.openQuickCapture())
@@ -208,6 +234,7 @@ if (!gotLock) {
       version: app.getVersion()
     }))
     ipcMain.on(IPC.APP_RELAUNCH_ELEVATED, () => relaunchElevated())
+    ipcMain.on(IPC.APP_RELAUNCH_NORMAL, () => quitForNormalRestart())
 
     ipcMain.handle(IPC.UPDATE_GET_STATUS, () => updates.getStatus())
     ipcMain.handle(IPC.UPDATE_CHECK, () => updates.check())

@@ -1,10 +1,22 @@
-import { useEffect } from 'react'
-import { Camera, Minus, Square, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Camera, Minus, ShieldAlert, Square, X } from 'lucide-react'
 import { useToastStore } from '@/stores/toast-store'
 import { cn } from '@/lib/utils'
 
 export function TitleBar(): JSX.Element {
   const push = useToastStore((s) => s.push)
+  const [elevated, setElevated] = useState(false)
+
+  // Running as administrator is invisible and has real consequences: Windows
+  // blocks the Snipping Tool over the window, and a normal launch can't bring
+  // this one back. Say so where it can't be missed.
+  useEffect(() => {
+    let alive = true
+    window.focusHub.getAppInfo().then((i) => alive && setElevated(i.elevated))
+    return () => {
+      alive = false
+    }
+  }, [])
 
   /*
     Screenshot the app from inside the app.
@@ -46,6 +58,16 @@ export function TitleBar(): JSX.Element {
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-glow" />
         Focus HUB
+        {elevated && (
+          <button
+            onClick={() => window.focusHub.relaunchNormal()}
+            title="Rodando como administrador. Assim o Windows não deixa a Ferramenta de Recorte aparecer sobre o app, e abrir pelo atalho não traz esta janela de volta. Clique para fechar e reabrir normalmente."
+            className="no-drag flex items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
+          >
+            <ShieldAlert className="h-3 w-3" />
+            admin
+          </button>
+        )}
       </div>
       <div className="no-drag flex items-center gap-1">
         <WinButton

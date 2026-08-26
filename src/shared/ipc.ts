@@ -68,6 +68,7 @@ export const IPC = {
   FLOW_RELEASE: 'flow:release',
   FLOW_IS_ELEVATED: 'flow:isElevated',
   APP_GET_INFO: 'app:getInfo',
+  APP_RELAUNCH_NORMAL: 'app:relaunchNormal',
   APP_RELAUNCH_ELEVATED: 'app:relaunchElevated',
 
   // Updates
@@ -144,6 +145,8 @@ export interface FocusHubApi {
   isElevated(): Promise<boolean>
   getAppInfo(): Promise<{ isPackaged: boolean; elevated: boolean; version: string }>
   relaunchElevated(): void
+  /** Close the app so it can be reopened without administrator rights. */
+  relaunchNormal(): void
 
   getUpdateStatus(): Promise<UpdateStatus>
   checkForUpdate(): Promise<UpdateStatus>

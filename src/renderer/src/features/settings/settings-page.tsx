@@ -258,6 +258,16 @@ export function SettingsPage(): JSX.Element {
             checked={settings.alwaysElevate}
             onChange={(v) => saveSettings({ alwaysElevate: v })}
           />
+          {appInfo?.elevated && (
+            <Row
+              label="Sair do modo administrador"
+              desc="Como administrador, o Windows não deixa a Ferramenta de Recorte aparecer sobre o app, e abrir de novo pelo atalho não traz esta janela de volta. Feche aqui e abra pelo atalho."
+            >
+              <Button variant="primary" onClick={() => window.focusHub.relaunchNormal()}>
+                <ShieldAlert className="h-4 w-4" /> Fechar o app
+              </Button>
+            </Row>
+          )}
           <Row
             label="Elevar agora"
             desc={
