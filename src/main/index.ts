@@ -231,15 +231,17 @@ if (!gotLock) {
     app.setAppUserModelId('com.faah.focushub')
     logLaunch(`abriu | admin=${await flow.isElevated()} | empacotado=${app.isPackaged}`)
 
-    // Auto-elevate on launch when the user opted in (installed app only, so we
-    // never disrupt the dev workflow). One UAC prompt, then site blocking works.
-    if (app.isPackaged && repo.getAll().settings.alwaysElevate) {
-      const elevated = await flow.isElevated()
-      if (!elevated) {
-        relaunchElevated()
-        return
-      }
-    }
+    /*
+      There is deliberately no auto-elevation here any more.
+
+      It used to quit immediately and relaunch itself through UAC whenever the
+      "always run as administrator" setting was on. Decline that prompt and the
+      app simply never opened; accept it and every session ran elevated, which
+      is why Windows refused to let the Snipping Tool draw over the window. One
+      setting, three symptoms, and nothing on screen to explain any of them.
+
+      Elevation is now only ever explicit, from the button in Ajustes.
+    */
 
     logLaunch('  etapa: limpando bloqueio de sites')
     // A crash mid-session would leave the hosts block in place forever.

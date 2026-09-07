@@ -252,12 +252,6 @@ export function SettingsPage(): JSX.Element {
               )}
             </span>
           </Row>
-          <ToggleRow
-            label="Sempre abrir como administrador"
-            desc="No app instalado, pede elevação (UAC) automaticamente ao abrir."
-            checked={settings.alwaysElevate}
-            onChange={(v) => saveSettings({ alwaysElevate: v })}
-          />
           {appInfo?.elevated && (
             <Row
               label="Sair do modo administrador"

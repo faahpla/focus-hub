@@ -178,6 +178,17 @@ export class Repository {
       data.settings.cardTagPresets = []
       changed = true
     }
+    /*
+      Free anyone stuck in the auto-elevation loop.
+
+      With this on, launching quit the app instantly and relaunched it through
+      UAC. Declining the prompt meant the app never opened at all. The startup
+      auto-elevation is gone, and so is the flag that drove it.
+    */
+    if (data.settings && data.settings.alwaysElevate) {
+      data.settings.alwaysElevate = false
+      changed = true
+    }
     if (data.settings && !Array.isArray(data.settings.cardStepPresets)) {
       data.settings.cardStepPresets = [...DEFAULT_STEP_PRESETS]
       changed = true
