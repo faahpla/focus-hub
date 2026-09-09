@@ -115,7 +115,7 @@ export interface FocusHubApi {
   saveStats(stats: Stats): Promise<AppData>
   saveSettings(settings: Settings): Promise<AppData>
   exportBackup(): Promise<{ ok: boolean; path?: string }>
-  importBackup(): Promise<{ ok: boolean; data?: AppData }>
+  importBackup(): Promise<{ ok: boolean; data?: AppData; error?: string }>
   listBackups(): Promise<BackupInfo[]>
   restoreBackup(file: string): Promise<{ ok: boolean; data?: AppData }>
   openBackupsFolder(): void

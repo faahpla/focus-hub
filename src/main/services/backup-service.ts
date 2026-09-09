@@ -11,6 +11,52 @@ interface BackupFile {
   data: AppData
 }
 
+/** The lists a whole document always carries — how we recognise one. */
+const DOCUMENT_LISTS = ['projects', 'tasks', 'ideas', 'boards', 'cards', 'sessions'] as const
+
+export type ParsedBackup =
+  | { ok: true; data: AppData }
+  | { ok: false; reason: 'invalid-json' | 'not-a-backup' }
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+const looksLikeDocument = (v: Record<string, unknown>): boolean =>
+  DOCUMENT_LISTS.filter((k) => Array.isArray(v[k])).length >= 3
+
+/** Peel envelopes until the document itself shows up. */
+function unwrap(value: unknown, depth = 0): AppData | null {
+  if (!isRecord(value)) return null
+  if (looksLikeDocument(value)) return value as unknown as AppData
+  if (depth < 4) return unwrap(value.data, depth + 1)
+  return null
+}
+
+/**
+ * Read a backup file the user picked, whatever shape it arrived in.
+ *
+ * Three shapes are legitimately out there: the bare document (what Exportar
+ * writes), a snapshot `{ savedAt, reason, data }`, and the live store file
+ * `{ data }`. A file that passed through other tools also picks up a UTF-8
+ * BOM, and `JSON.parse` rejects that outright.
+ *
+ * Refusing a JSON that holds no document matters as much as accepting the
+ * others: importing an envelope used to store the envelope itself, leaving the
+ * app reading empty lists with the real data stranded one level down.
+ */
+export function parseBackupDocument(raw: string): ParsedBackup {
+  let parsed: unknown
+  try {
+    // A BOM is a real character to JSON.parse, and it rejects the file.
+    const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw
+    parsed = JSON.parse(text)
+  } catch {
+    return { ok: false, reason: 'invalid-json' }
+  }
+  const data = unwrap(parsed)
+  return data ? { ok: true, data } : { ok: false, reason: 'not-a-backup' }
+}
+
 /**
  * Rolling local snapshots of the whole document.
  *

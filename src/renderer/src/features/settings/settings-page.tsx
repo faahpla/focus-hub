@@ -40,6 +40,8 @@ const FONTS = ['Inter', 'system-ui', 'Segoe UI', 'JetBrains Mono']
 export function SettingsPage(): JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const saveSettings = useAppStore((s) => s.saveSettings)
+  const hydrate = useAppStore((s) => s.hydrate)
+  const pushToast = useToastStore((s) => s.push)
   const [appInfo, setAppInfo] = useState<{
     isPackaged: boolean
     elevated: boolean
@@ -51,10 +53,29 @@ export function SettingsPage(): JSX.Element {
   }, [])
 
   const exportBackup = async (): Promise<void> => {
-    await window.focusHub.exportBackup()
+    const res = await window.focusHub.exportBackup()
+    if (res.ok) {
+      pushToast({ title: 'Dados exportados', lines: [res.path ?? ''], variant: 'success' })
+    }
   }
   const importBackup = async (): Promise<void> => {
-    await window.focusHub.importBackup()
+    const res = await window.focusHub.importBackup()
+    if (res.ok && res.data) {
+      // Without this the screen keeps showing the old document until a restart.
+      hydrate(res.data)
+      pushToast({
+        title: 'Dados importados',
+        lines: [
+          `${res.data.projects.length} projetos, ${res.data.boards.length} quadros, ${res.data.cards.length} cards.`,
+          'O estado anterior virou backup, dá para voltar atrás.'
+        ],
+        variant: 'success'
+      })
+    } else if (res.error) {
+      // Cancelling the dialog also returns ok:false — but with no reason, and
+      // that one deserves silence.
+      pushToast({ title: 'Não foi possível importar', lines: [res.error], variant: 'warning' })
+    }
   }
 
   return (

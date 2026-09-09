@@ -23,6 +23,7 @@ import type {
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import type { Repository } from '../store/repository'
 import type { BackupService } from '../services/backup-service'
+import { parseBackupDocument } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
 import type { WindowManager } from '../windows/window-manager'
 
@@ -113,16 +114,31 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
       filters: [{ name: 'JSON', extensions: ['json'] }]
     })
     if (res.canceled || !res.filePaths[0]) return { ok: false }
+
+    let raw: string
     try {
-      const raw = await fs.readFile(res.filePaths[0], 'utf8')
-      const data = JSON.parse(raw) as AppData
-      backups.snapshot(repo.getAll(), 'antes de importar backup')
-      const saved = repo.replaceAll(data)
-      changed(saved)
-      return { ok: true, data: saved }
+      raw = await fs.readFile(res.filePaths[0], 'utf8')
     } catch {
-      return { ok: false }
+      return { ok: false, error: 'Não foi possível ler o arquivo.' }
     }
+
+    // Every failure here used to return a bare `ok: false` that the screen
+    // ignored, so a refused import looked exactly like nothing happening.
+    const parsed = parseBackupDocument(raw)
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        error:
+          parsed.reason === 'invalid-json'
+            ? 'O arquivo não é um JSON válido.'
+            : 'O arquivo é um JSON, mas não tem dados do Focus HUB dentro.'
+      }
+    }
+
+    backups.snapshot(repo.getAll(), 'antes de importar backup')
+    const saved = repo.replaceAll(parsed.data)
+    changed(saved)
+    return { ok: true, data: saved }
   })
 
   // ---- Automatic snapshots ----
