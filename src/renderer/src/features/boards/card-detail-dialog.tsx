@@ -6,9 +6,7 @@ import {
   Check,
   ChevronDown,
   Copy,
-  ExternalLink,
   FileText,
-  Folder,
   ListChecks,
   Plus,
   Maximize2,
@@ -167,40 +165,18 @@ function CardEditor({
     patch({ summary: next })
   )
 
+  // One line, one entry - see linesToAssets.
+  const [assetsText, setAssetsText] = useAutosavedText(
+    assets.map((a) => a.value).join('\n'),
+    (next) => patchWith((c) => ({ assets: linesToAssets(next, c.assets ?? []) }))
+  )
+
   const addTag = (): void => {
     const tag = tagDraft.trim()
     if (tag) {
       patchWith((c) => (c.tags.includes(tag) ? {} : { tags: [...c.tags, tag] }))
     }
     setTagDraft('')
-  }
-
-  const addAsset = (rawValue: string): void => {
-    const value = rawValue.trim()
-    if (!value) return
-
-    const isLink = /^https?:\/\//i.test(value)
-    // Drive letter (C:\…), UNC share (\\…) or a posix-ish absolute path.
-    const isPath = !isLink && /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(value)
-
-    let label = value
-    if (isLink) {
-      try {
-        label = new URL(value).hostname.replace(/^www\./, '')
-      } catch {
-        /* keep the raw value as the label */
-      }
-    } else if (isPath) {
-      label = value.split(/[\\/]/).pop() || value
-    }
-
-    const kind: CardAsset['kind'] = isLink ? 'link' : isPath ? 'path' : 'text'
-    patchWith((c) => ({ assets: [...c.assets, { id: uid(), label, value, kind }] }))
-  }
-
-  const pickAsset = async (kind: 'file' | 'folder'): Promise<void> => {
-    const picked = await window.focusHub.pickPath(kind)
-    if (picked) addAsset(picked)
   }
 
   return (
@@ -454,57 +430,32 @@ function CardEditor({
                 />
               </div>
 
-              {/* Assets */}
+              {/*
+                Assets is a plain list of lines, not attachments. Every entry
+                ever written here was text - hook variants, title ideas - and
+                not one was a file or a link, so the row list, the
+                Enter-to-add box and the file/folder pickers were friction
+                wrapped around a notepad. It stays stored as CardAsset[]
+                because the board badge counts the entries.
+              */}
               <div>
-                <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
-                  <Paperclip className="h-3.5 w-3.5 text-muted-foreground" /> Assets
-                </p>
-                <div className="mb-2 space-y-1.5">
-                  {assets.map((asset) => (
-                    <AssetRow
-                      key={asset.id}
-                      asset={asset}
-                      onRemove={() =>
-                        patchWith((c) => ({
-                          assets: c.assets.filter((a) => a.id !== asset.id)
-                        }))
-                      }
-                    />
-                  ))}
-                  {assets.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Thumbnail, trilha, footage, referências…
-                    </p>
-                  )}
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Paperclip className="h-3.5 w-3.5 text-muted-foreground" /> Assets
+                    {assets.length > 0 && (
+                      <span className="text-[11px] font-normal tabular text-muted-foreground">
+                        {assets.length}
+                      </span>
+                    )}
+                  </p>
+                  <CopyButton value={assetsText} />
                 </div>
-                <Input
-                  placeholder="Link, caminho ou texto + Enter…"
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter') return
-                    e.preventDefault()
-                    addAsset(e.currentTarget.value)
-                    e.currentTarget.value = ''
-                  }}
-                  className="h-9 text-xs"
+                <textarea
+                  value={assetsText}
+                  onChange={(e) => setAssetsText(e.target.value)}
+                  placeholder="Uma por linha: gancho, titulo, referencia..."
+                  className="no-drag min-h-[180px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
-                <div className="mt-1.5 flex gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => void pickAsset('file')}
-                  >
-                    <FileText className="h-3.5 w-3.5" /> Arquivo
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => void pickAsset('folder')}
-                  >
-                    <Folder className="h-3.5 w-3.5" /> Pasta
-                  </Button>
-                </div>
               </div>
 
               {/* Publish title — separate from the card's own name, which is
@@ -512,7 +463,7 @@ function CardEditor({
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título TikTok
+                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
                   </p>
                   <CopyButton value={publishTitle} />
                 </div>
@@ -537,7 +488,7 @@ function CardEditor({
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Descrição
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
                   </p>
                   <CopyButton value={description} />
                 </div>
@@ -707,42 +658,29 @@ function CardEditor({
   )
 }
 
-function AssetRow({
-  asset,
-  onRemove
-}: {
-  asset: CardAsset
-  onRemove: () => void
-}): JSX.Element {
-  // Older entries predate `kind`; fall back to sniffing the value.
-  const kind = asset.kind ?? (/^https?:\/\//i.test(asset.value) ? 'link' : 'path')
-  const Icon = kind === 'link' ? ExternalLink : kind === 'path' ? Folder : Type
-
-  return (
-    <div className="group flex items-center gap-1.5 rounded-lg border border-border/60 bg-surface/40 px-2 py-1.5">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-xs" title={asset.value}>
-        {asset.label}
-      </span>
-      {kind !== 'text' && (
-        <button
-          onClick={() => void window.focusHub.openPath(asset.value)}
-          className="no-drag shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-all hover:text-foreground group-hover:opacity-100"
-          title="Abrir"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </button>
-      )}
-      <CopyButton value={asset.value} label="" />
-      <button
-        onClick={onRemove}
-        className="no-drag shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
-        title="Remover"
-      >
-        <X className="h-3 w-3" />
-      </button>
-    </div>
-  )
+/**
+ * One line, one asset.
+ *
+ * The field is stored as CardAsset[] and the board badge counts its length, so
+ * the list shape stays; only the way it is edited changed. Ids are reused for
+ * lines that did not change, so editing the last line does not rewrite every
+ * entry in the document.
+ */
+function linesToAssets(text: string, previous: CardAsset[]): CardAsset[] {
+  const spare = new Map<string, CardAsset[]>()
+  for (const asset of previous) {
+    const same = spare.get(asset.value) ?? []
+    same.push(asset)
+    spare.set(asset.value, same)
+  }
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((value) => {
+      const reused = spare.get(value)?.shift()
+      return { id: reused?.id ?? uid(), label: value, value, kind: 'text' as const }
+    })
 }
 
 /**
