@@ -454,52 +454,6 @@ function CardEditor({
                 />
               </div>
 
-              {/* Publish title — separate from the card's own name, which is
-                  written to find it on the board, not to go on the video. */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título TikTok
-                  </p>
-                  <CopyButton value={publishTitle} />
-                </div>
-                <textarea
-                  value={publishTitle}
-                  onChange={(e) => setPublishTitle(e.target.value)}
-                  onBlur={() =>
-                    publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
-                  }
-                  placeholder="O título que vai no vídeo…"
-                  rows={10}
-                  className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-                {publishTitle.trim() && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {publishTitle.trim().length} caracteres
-                  </p>
-                )}
-              </div>
-
-              {/* Description */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Descrição
-                  </p>
-                  <CopyButton value={description} />
-                </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() =>
-                    description !== (card.description ?? '') && patch({ description })
-                  }
-                  placeholder="A descrição que vai no post…"
-                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              </div>
-
-
               {/* Assets */}
               <div>
                 <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
@@ -552,6 +506,53 @@ function CardEditor({
                   </Button>
                 </div>
               </div>
+
+              {/* Publish title — separate from the card's own name, which is
+                  written to find it on the board, not to go on the video. */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> Título TikTok
+                  </p>
+                  <CopyButton value={publishTitle} />
+                </div>
+                <textarea
+                  value={publishTitle}
+                  onChange={(e) => setPublishTitle(e.target.value)}
+                  onBlur={() =>
+                    publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
+                  }
+                  placeholder="O título que vai no vídeo…"
+                  rows={10}
+                  className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+                {publishTitle.trim() && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {publishTitle.trim().length} caracteres
+                  </p>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Descrição
+                  </p>
+                  <CopyButton value={description} />
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() =>
+                    description !== (card.description ?? '') && patch({ description })
+                  }
+                  placeholder="A descrição que vai no post…"
+                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+              </div>
+
+
 
               {/* Pinned comment — written last, pasted somewhere else. */}
               <div>
