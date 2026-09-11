@@ -46,6 +46,7 @@ import { COLUMN_COLORS, isCardDone, makeColumn } from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
+import { dayLabel } from '@/lib/dates'
 
 type Lanes = Record<string, string[]>
 
@@ -690,10 +691,14 @@ function CardBody({
           {card.dueDate && (
             <span className="flex items-center gap-1 rounded-md bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted-foreground">
               <CalendarDays className="h-3 w-3" />
-              {new Date(card.dueDate).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: 'short'
-              })}
+              {/*
+                dayLabel builds the date in local time. `new Date('2026-09-07')`
+                parses as midnight *UTC*, which west of Greenwich renders as the
+                day before — the board showed 06 set for a card the dialog
+                called 7 Set, and changing the date looked like it did nothing.
+              */}
+              {dayLabel(card.dueDate)}
+              {card.dueTime && ` · ${card.dueTime}`}
             </span>
           )}
           {card.tags.map((tag) => (
