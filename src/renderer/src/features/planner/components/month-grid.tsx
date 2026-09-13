@@ -8,6 +8,7 @@ import { isChecked } from '@shared/planner'
 import type { BoardCard, Task } from '@shared/types'
 import { type DayKey, WEEKDAY_NAMES_MONDAY, monthGrid, today } from '@/lib/dates'
 import { cardUsage } from '@/features/finance/services/finance-engine'
+import { isCardCancelled } from '@/features/boards/board-templates'
 import type { AgendaLayers } from '@/stores/planner-ui-store'
 import { isDueOn } from '../services/habits-service'
 
@@ -77,7 +78,11 @@ export function MonthGrid({
         push(card.dueDate, {
           id: `card-${card.id}`,
           label: card.dueTime ? `${card.dueTime} ${card.title}` : card.title,
-          color: board?.color ?? '270 80% 66%',
+          // Red, like a dropped card everywhere else — a chip wearing its
+          // board's colour reads as work still on the table.
+          color: isCardCancelled(card, board?.columns ?? [])
+            ? '0 72% 60%'
+            : (board?.color ?? '270 80% 66%'),
           kind: 'card',
           card
         })

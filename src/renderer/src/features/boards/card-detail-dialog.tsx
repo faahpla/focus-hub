@@ -42,7 +42,7 @@ import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
-import { isCardDone } from './board-templates'
+import { isCardCancelled, isCardDone } from './board-templates'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
 
@@ -115,6 +115,7 @@ function CardEditor({
   const checklist = card.checklist ?? []
   const column = board.columns.find((c) => c.id === card.columnId)
   const finished = isCardDone(card, board.columns)
+  const dropped = isCardCancelled(card, board.columns)
 
   /** Take this card into a focus session — the card *is* the work. */
   const focusOnCard = (): void => {
@@ -192,18 +193,32 @@ function CardEditor({
               </DialogDescription>
             </DialogHeader>
             <div className="flex items-start gap-3">
-              <button
-                onClick={() => patch({ done: !finished })}
-                className={cn(
-                  'mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                  finished
-                    ? 'border-success bg-success text-white'
-                    : 'border-border hover:border-success/70'
-                )}
-                title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
-              >
-                {finished && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-              </button>
+              {/*
+                A dropped card shows the state instead of offering the tick:
+                concluding something you abandoned is not a move that makes
+                sense, and the way back is dragging it out of the column.
+              */}
+              {dropped ? (
+                <span
+                  className="mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-destructive bg-destructive text-white"
+                  title="Card dropado — tire da coluna de cancelados para retomar"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
+              ) : (
+                <button
+                  onClick={() => patch({ done: !finished })}
+                  className={cn(
+                    'mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                    finished
+                      ? 'border-success bg-success text-white'
+                      : 'border-border hover:border-success/70'
+                  )}
+                  title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
+                >
+                  {finished && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                </button>
+              )}
               <textarea
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -218,7 +233,8 @@ function CardEditor({
                 placeholder="Título do card"
                 className={cn(
                   'no-drag w-full resize-none bg-transparent text-lg font-semibold tracking-tight focus:outline-none',
-                  finished && 'text-muted-foreground line-through'
+                  (finished || dropped) && 'text-muted-foreground line-through',
+                  dropped && 'decoration-destructive/60'
                 )}
               />
             </div>

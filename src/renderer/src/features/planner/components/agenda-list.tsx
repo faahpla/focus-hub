@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { CircleDollarSign, KanbanSquare } from 'lucide-react'
+import { CircleDollarSign, KanbanSquare, XCircle } from 'lucide-react'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { formatMoney } from '@/features/finance/utils/money'
 import { cardUsage } from '@/features/finance/services/finance-engine'
 import type { AgendaLayers } from '@/stores/planner-ui-store'
 import { TaskRow } from './task-row'
+import { isCardCancelled } from '@/features/boards/board-templates'
 
 /** How far ahead the list looks. */
 const HORIZON_DAYS = 30
@@ -43,6 +44,7 @@ export function AgendaList({
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
   const cards = useAppStore((s) => s.cards)
+  const boards = useAppStore((s) => s.boards)
   const finance = useAppStore((s) => s.finance)
 
   const groups = useMemo(() => {
@@ -168,18 +170,50 @@ export function AgendaList({
               }
               if (entry.card) {
                 const card = entry.card
+                // A dropped card listed as an upcoming delivery is worse than
+                // one listed plainly: it promises work nobody is going to do.
+                const cancelled = isCardCancelled(
+                  card,
+                  boards.find((b) => b.id === card.boardId)?.columns ?? []
+                )
                 return (
                   <button
                     key={card.id}
                     onClick={() => onOpenCard?.(card)}
-                    className="no-drag flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+                    className={cn(
+                      'no-drag flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
+                      cancelled
+                        ? 'border-destructive/25 bg-destructive/[0.05] hover:bg-destructive/10'
+                        : 'border-primary/25 bg-primary/[0.05] hover:bg-primary/10'
+                    )}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                      <KanbanSquare className="h-4 w-4" />
+                    <span
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                        cancelled
+                          ? 'bg-destructive/15 text-destructive'
+                          : 'bg-primary/15 text-primary'
+                      )}
+                    >
+                      {cancelled ? (
+                        <XCircle className="h-4 w-4" />
+                      ) : (
+                        <KanbanSquare className="h-4 w-4" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{card.title}</p>
-                      <p className="text-[11px] text-muted-foreground">Entrega</p>
+                      <p
+                        className={cn(
+                          'truncate text-sm',
+                          cancelled &&
+                            'text-muted-foreground line-through decoration-destructive/60'
+                        )}
+                      >
+                        {card.title}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {cancelled ? 'Dropado' : 'Entrega'}
+                      </p>
                     </div>
                     <span className="shrink-0 text-xs tabular text-muted-foreground">
                       {card.dueTime ?? 'sem hora'}

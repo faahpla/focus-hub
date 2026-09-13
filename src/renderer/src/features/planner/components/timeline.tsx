@@ -11,8 +11,8 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { useState } from 'react'
-import { CheckCircle2, KanbanSquare, Lock, MapPin } from 'lucide-react'
-import { isCardDone } from '@/features/boards/board-templates'
+import { CheckCircle2, KanbanSquare, Lock, MapPin, XCircle } from 'lucide-react'
+import { isCardCancelled, isCardDone } from '@/features/boards/board-templates'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
@@ -42,10 +42,14 @@ interface Block {
   card?: BoardCard
   locked?: boolean
   done?: boolean
+  cancelled?: boolean
 }
 
 /** Green: finished work reads as finished no matter what colour it started as. */
 const DONE_COLOR = '152 62% 47%'
+
+/** Red, mirroring DONE_COLOR: dropped work stops wearing its board's colour. */
+const DROPPED_COLOR = '0 72% 60%'
 
 /**
  * The day/week timeline: real time blocking, where a two-hour task occupies
@@ -153,6 +157,7 @@ export function Timeline({
         // A card counts as done both by its own flag and by landing in a
         // "done" column — the same rule the board itself uses.
         const done = isCardDone(card, board?.columns ?? [])
+        const cancelled = isCardCancelled(card, board?.columns ?? [])
         out.push({
           kind: 'card',
           id: card.id,
@@ -160,9 +165,10 @@ export function Timeline({
           start,
           end: start + (card.durationMinutes ?? 60),
           title: card.title,
-          color: done ? DONE_COLOR : (board?.color ?? '270 80% 66%'),
+          color: cancelled ? DROPPED_COLOR : done ? DONE_COLOR : (board?.color ?? '270 80% 66%'),
           card,
-          done
+          done,
+          cancelled
         })
       }
     }
@@ -255,24 +261,34 @@ export function Timeline({
                 )}
               >
                 {untimedByDay[i].map((card) => {
-                  const done = isCardDone(
-                    card,
-                    boards.find((b) => b.id === card.boardId)?.columns ?? []
-                  )
+                  const columns = boards.find((b) => b.id === card.boardId)?.columns ?? []
+                  const done = isCardDone(card, columns)
+                  const cancelled = isCardCancelled(card, columns)
                   return (
                     <button
                       key={card.id}
                       onClick={() => onOpenCard?.(card)}
                       className={cn(
                         'no-drag flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-[10px] font-medium transition-colors',
-                        done
-                          ? 'bg-success/15 text-success hover:bg-success/25'
-                          : 'bg-primary/15 text-primary hover:bg-primary/25'
+                        cancelled
+                          ? 'bg-destructive/15 text-destructive hover:bg-destructive/25'
+                          : done
+                            ? 'bg-success/15 text-success hover:bg-success/25'
+                            : 'bg-primary/15 text-primary hover:bg-primary/25'
                       )}
-                      title={`${card.title} · entrega sem horário definido${done ? ' · concluído' : ''}`}
+                      title={`${card.title} · entrega sem horário definido${cancelled ? ' · dropado' : done ? ' · concluído' : ''}`}
                     >
-                      {done && <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />}
-                      <span className={cn('truncate', done && 'line-through opacity-80')}>
+                      {cancelled ? (
+                        <XCircle className="h-2.5 w-2.5 shrink-0" />
+                      ) : (
+                        done && <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
+                      )}
+                      <span
+                        className={cn(
+                          'truncate',
+                          (done || cancelled) && 'line-through opacity-80'
+                        )}
+                      >
                         {card.title}
                       </span>
                     </button>
@@ -477,6 +493,8 @@ function TimelineBlock({
   const minutes = block.end - block.start
   const width = 100 / lane.total
   const range = `${fromMinutes(block.start)}–${fromMinutes(block.end)}`
+  // Finished and dropped both settle down visually; the colour says which.
+  const settled = block.done === true || block.cancelled === true
 
   return (
     <div
@@ -493,22 +511,29 @@ function TimelineBlock({
         height: Math.max(16, minutes * PX_PER_MINUTE - 2),
         left: `calc(${lane.index * width}% + 3px)`,
         width: `calc(${width}% - 6px)`,
-        background: `hsl(${block.color} / ${block.done ? 0.1 : 0.18})`,
+        background: `hsl(${block.color} / ${settled ? 0.1 : 0.18})`,
         // A solid left edge reads as a colour code without shouting.
         borderLeft: `3px solid hsl(${block.color})`,
-        opacity: block.done ? 0.75 : 1
+        opacity: settled ? 0.75 : 1
       }}
-      title={`${block.title} · ${range}${block.done ? ' · concluído' : ''}`}
+      title={`${block.title} · ${range}${block.cancelled ? ' · dropado' : block.done ? ' · concluído' : ''}`}
     >
       <div className="flex items-center gap-1 px-1.5 pt-1">
-        {block.done && (
-          <CheckCircle2
+        {block.cancelled ? (
+          <XCircle
             className="h-2.5 w-2.5 shrink-0"
-            style={{ color: `hsl(${DONE_COLOR})` }}
+            style={{ color: `hsl(${DROPPED_COLOR})` }}
           />
+        ) : (
+          block.done && (
+            <CheckCircle2
+              className="h-2.5 w-2.5 shrink-0"
+              style={{ color: `hsl(${DONE_COLOR})` }}
+            />
+          )
         )}
         {block.locked && <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />}
-        {block.kind === 'card' && !block.done && (
+        {block.kind === 'card' && !settled && (
           <KanbanSquare className="h-2.5 w-2.5 shrink-0 opacity-70" />
         )}
         {block.event?.icon && (
@@ -517,7 +542,7 @@ function TimelineBlock({
         <span
           className={cn(
             'truncate text-[11px] font-medium leading-tight',
-            block.done && 'line-through decoration-1 opacity-70'
+            settled && 'line-through decoration-1 opacity-70'
           )}
         >
           {block.title}
