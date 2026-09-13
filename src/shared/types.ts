@@ -143,6 +143,12 @@ export interface BoardColumn {
   order: number
   /** Landing here means the work is finished — cards get a "done" look. */
   done?: boolean
+  /**
+   * Landing here means the work was dropped — cards get a struck-through red
+   * look. Kept apart from "done" because a dropped card is not finished work
+   * and must not read as an achievement.
+   */
+  cancelled?: boolean
 }
 
 /**

@@ -24,6 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Ban,
   CalendarDays,
   Check,
   CircleCheckBig,
@@ -42,7 +43,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAppStore } from '@/stores/app-store'
 import type { Board, BoardCard, BoardColumn } from '@shared/types'
-import { COLUMN_COLORS, isCardDone, makeColumn } from './board-templates'
+import { COLUMN_COLORS, isCardCancelled, isCardDone, makeColumn } from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
@@ -131,12 +132,15 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
             begin with, so dragging it back out still un-finishes it.
           */
           const moved = card.columnId !== columnId
-          const landsInDoneColumn = columns.find((c) => c.id === columnId)?.done === true
+          const target = columns.find((c) => c.id === columnId)
+          // Dropping decides doneness too: a card dragged to the graveyard is
+          // not finished, so a tick made by hand goes with it.
+          const columnDecides = target?.done === true || target?.cancelled === true
           changed.push({
             ...card,
             columnId,
             order,
-            ...(moved && landsInDoneColumn ? { done: undefined } : {})
+            ...(moved && columnDecides ? { done: undefined } : {})
           })
         }
       })
@@ -278,7 +282,12 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               onAddCard={(title) => addCard(column.id, title)}
               onRename={(name) => patchColumn(column.id, { name })}
               onRecolor={(color) => patchColumn(column.id, { color })}
-              onToggleDone={() => patchColumn(column.id, { done: !column.done })}
+              onToggleDone={() =>
+                patchColumn(column.id, { done: !column.done, cancelled: false })
+              }
+              onToggleCancelled={() =>
+                patchColumn(column.id, { cancelled: !column.cancelled, done: false })
+              }
               onDelete={() => removeColumn(column.id)}
               onOpenCard={setOpenCardId}
               onToggleCardDone={toggleCardDone}
@@ -301,6 +310,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               <CardBody
                 card={activeCard}
                 done={isCardDone(activeCard, columns)}
+                cancelled={isCardCancelled(activeCard, columns)}
                 dragging
               />
             </div>
@@ -339,6 +349,7 @@ function Column({
   onRename,
   onRecolor,
   onToggleDone,
+  onToggleCancelled,
   onDelete,
   onOpenCard,
   onToggleCardDone,
@@ -353,6 +364,7 @@ function Column({
   onRename: (name: string) => void
   onRecolor: (color: string) => void
   onToggleDone: () => void
+  onToggleCancelled: () => void
   onDelete: () => void
   onOpenCard: (id: string) => void
   onToggleCardDone: (id: string) => void
@@ -383,7 +395,9 @@ function Column({
     <div className="flex h-full w-[280px] shrink-0 flex-col">
       {/* Header */}
       <div className="mb-2 flex items-center gap-2 px-1">
-        {column.done ? (
+        {column.cancelled ? (
+          <Ban className="h-3.5 w-3.5 shrink-0 text-destructive" />
+        ) : column.done ? (
           <CircleCheckBig className="h-3.5 w-3.5 shrink-0 text-success" />
         ) : (
           <span
@@ -414,7 +428,8 @@ function Column({
             }}
             className={cn(
               'no-drag min-w-0 flex-1 truncate text-left text-sm font-semibold',
-              column.done && 'text-success'
+              column.done && 'text-success',
+              column.cancelled && 'text-destructive'
             )}
             title="Duplo clique para renomear"
           >
@@ -443,6 +458,15 @@ function Column({
               <span className="flex items-center gap-2">
                 <CircleCheckBig className="h-4 w-4" />
                 Coluna de conclusão
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onToggleCancelled}
+              active={column.cancelled === true}
+            >
+              <span className="flex items-center gap-2">
+                <Ban className="h-4 w-4" />
+                Coluna de cancelados
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -481,6 +505,7 @@ function Column({
         className={cn(
           'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border border-transparent p-1.5 transition-colors scrollbar-thin',
           column.done && 'border-success/20 bg-success/[0.04]',
+          column.cancelled && 'border-destructive/20 bg-destructive/[0.04]',
           isOver && 'border-primary/40 bg-primary/5'
         )}
       >
@@ -494,6 +519,7 @@ function Column({
                   key={id}
                   card={card}
                   done={isCardDone(card, columns)}
+                  cancelled={isCardCancelled(card, columns)}
                   onOpen={() => onOpenCard(id)}
                   onToggleDone={() => onToggleCardDone(id)}
                   onContextMenu={(e) => {
@@ -567,12 +593,14 @@ function Column({
 function SortableCard({
   card,
   done,
+  cancelled,
   onOpen,
   onToggleDone,
   onContextMenu
 }: {
   card: BoardCard
   done: boolean
+  cancelled: boolean
   onOpen: () => void
   onToggleDone: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -590,7 +618,7 @@ function SortableCard({
       onContextMenu={onContextMenu}
       className={cn('no-drag touch-none', isDragging && 'opacity-30')}
     >
-      <CardBody card={card} done={done} onToggleDone={onToggleDone} />
+      <CardBody card={card} done={done} cancelled={cancelled} onToggleDone={onToggleDone} />
     </div>
   )
 }
@@ -599,11 +627,13 @@ function SortableCard({
 function CardBody({
   card,
   done,
+  cancelled,
   dragging,
   onToggleDone
 }: {
   card: BoardCard
   done?: boolean
+  cancelled?: boolean
   dragging?: boolean
   onToggleDone?: () => void
 }): JSX.Element {
@@ -613,6 +643,9 @@ function CardBody({
   // A card is finished by its column or by hand — never by its tasks, since a
   // deliverable can have every step done and still be waiting to publish.
   const finished = done ?? false
+  const dropped = cancelled ?? false
+  // Both states strike the text out; only the colour says which one it is.
+  const struck = finished || dropped
 
   return (
     <motion.div
@@ -622,34 +655,45 @@ function CardBody({
       exit={{ opacity: 0, scale: 0.95 }}
       className={cn(
         'group/card relative cursor-grab select-none rounded-xl border border-border/70 bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface-hover active:cursor-grabbing',
-        finished && 'border-success/25 bg-success/[0.06] opacity-70 hover:opacity-100',
+        finished && !dropped && 'border-success/25 bg-success/[0.06] opacity-70 hover:opacity-100',
+        dropped && 'border-destructive/25 bg-destructive/[0.06] opacity-60 hover:opacity-100',
         dragging && 'border-primary/50 bg-surface-elevated shadow-elevated'
       )}
     >
       <div className="flex items-start gap-2">
-        {onToggleDone && (
-          <button
-            onClick={(e) => {
-              // The whole card is a drag handle and opens the dialog on click.
-              e.stopPropagation()
-              onToggleDone()
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={cn(
-              'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors',
-              finished
-                ? 'border-success bg-success text-white'
-                : 'border-border opacity-0 hover:border-success/70 group-hover/card:opacity-100'
-            )}
-            title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
+        {dropped ? (
+          <span
+            className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border border-destructive bg-destructive text-white"
+            title="Card dropado — arraste para fora da coluna para retomar"
           >
-            {finished && <Check className="h-3 w-3" strokeWidth={3} />}
-          </button>
+            <X className="h-3 w-3" strokeWidth={3} />
+          </span>
+        ) : (
+          onToggleDone && (
+            <button
+              onClick={(e) => {
+                // The whole card is a drag handle and opens the dialog on click.
+                e.stopPropagation()
+                onToggleDone()
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={cn(
+                'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors',
+                finished
+                  ? 'border-success bg-success text-white'
+                  : 'border-border opacity-0 hover:border-success/70 group-hover/card:opacity-100'
+              )}
+              title={finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
+            >
+              {finished && <Check className="h-3 w-3" strokeWidth={3} />}
+            </button>
+          )
         )}
         <p
           className={cn(
             'min-w-0 flex-1 text-sm leading-snug',
-            finished && 'text-muted-foreground line-through'
+            struck && 'text-muted-foreground line-through',
+            dropped && 'decoration-destructive/60'
           )}
         >
           {card.title}
@@ -660,7 +704,8 @@ function CardBody({
         <p
           className={cn(
             'mt-1.5 line-clamp-2 text-xs text-muted-foreground',
-            finished && 'line-through decoration-muted-foreground/40'
+            struck && 'line-through decoration-muted-foreground/40',
+            dropped && 'decoration-destructive/40'
           )}
         >
           {card.notes}

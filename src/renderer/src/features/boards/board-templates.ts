@@ -11,6 +11,17 @@ export function isCardDone(card: BoardCard, columns: BoardColumn[]): boolean {
   return columns.find((c) => c.id === card.columnId)?.done === true
 }
 
+/**
+ * A card counts as dropped when it sits in a column marked as the graveyard.
+ *
+ * Unlike "done", this is never stored on the card: you drop something by
+ * moving it, and dragging it back out is how you undrop it. It deliberately
+ * does not feed isCardDone — abandoned work is not finished work.
+ */
+export function isCardCancelled(card: BoardCard, columns: BoardColumn[]): boolean {
+  return columns.find((c) => c.id === card.columnId)?.cancelled === true
+}
+
 /** Palette used for new columns, cycled in order. */
 export const COLUMN_COLORS = [
   '250 82% 68%',
