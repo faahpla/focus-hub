@@ -44,18 +44,32 @@ export function CardContextMenu({
   const card = cards.find((c) => c.id === target.cardId)
 
   useEffect(() => {
-    const close = (): void => onClose()
+    /*
+      Close on a pointer down outside the menu — and only outside it.
+
+      Asking the event where it landed is what makes this work. The menu used
+      to guard itself with a stopPropagation on its own div, which could never
+      run in time: this listener sits on `window` in the capture phase, so it
+      fires before the event has even reached the menu, let alone React's
+      handler for it. The menu unmounted on pointerdown and the click that
+      followed had no button left to land on, which killed every item in here
+      — Excluir was just the one people noticed.
+    */
+    const closeOutside = (e: PointerEvent): void => {
+      if (ref.current?.contains(e.target as Node)) return
+      onClose()
+    }
+    const closeNow = (): void => onClose()
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
     }
-    // Capture phase so the menu closes before the click lands on anything else.
-    window.addEventListener('pointerdown', close, true)
+    window.addEventListener('pointerdown', closeOutside, true)
     window.addEventListener('keydown', onKey)
-    window.addEventListener('resize', close)
+    window.addEventListener('resize', closeNow)
     return () => {
-      window.removeEventListener('pointerdown', close, true)
+      window.removeEventListener('pointerdown', closeOutside, true)
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('resize', closeNow)
     }
   }, [onClose])
 
@@ -103,7 +117,6 @@ export function CardContextMenu({
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.12 }}
       style={{ left, top, width: WIDTH }}
-      onPointerDown={(e) => e.stopPropagation()}
       className="fixed z-[60] overflow-hidden rounded-xl border border-border bg-surface-elevated p-1.5 shadow-elevated"
     >
       <p className="truncate px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
