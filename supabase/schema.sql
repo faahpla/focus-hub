@@ -128,6 +128,14 @@ alter table public.cards         enable row level security;
 -- Nothing here is for anonymous visitors.
 revoke all on public.boards, public.board_members, public.board_invites, public.cards from anon;
 
+-- Granted by hand rather than relying on the project exposing new tables to
+-- the API automatically — Supabase recommends turning that off, and this
+-- script works either way. Row level security below still decides which rows.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete
+  on public.boards, public.board_members, public.board_invites, public.cards
+  to authenticated;
+
 -- boards ----------------------------------------------------------------------
 drop policy if exists boards_select on public.boards;
 create policy boards_select on public.boards
