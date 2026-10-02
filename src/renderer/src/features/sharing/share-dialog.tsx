@@ -137,9 +137,16 @@ function StartSharing({ board }: { board: Board }): JSX.Element {
   )
 }
 
+/*
+  People who already have access come first, and the invite form stays shut
+  behind a button. With the form open on top it read as "this board's
+  permissions": changing who may delete meant editing that form, which only
+  shapes the next code and has no Save — the real control sat further down.
+*/
 function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JSX.Element {
-  const [members, setMembers] = useState<BoardMember[]>([])
+  const [members, setMembers] = useState<BoardMember[] | null>(null)
   const [invites, setInvites] = useState<BoardInvite[]>([])
+  const [inviting, setInviting] = useState<boolean | null>(null)
 
   const refresh = useCallback(() => {
     void window.focusHub.listMembers(board.id).then(setMembers)
@@ -147,12 +154,15 @@ function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JS
   }, [board.id])
   useEffect(refresh, [refresh])
 
+  // Nobody in yet: inviting is the only thing to do here, so open on it.
+  const inviteOpen = inviting ?? (members !== null && members.length === 0)
+
   return (
     <>
-      <InviteSection boardId={board.id} onCreated={refresh} />
-
       <Section title="Pessoas com acesso">
-        {members.length === 0 ? (
+        {members === null ? (
+          <p className="text-xs text-muted-foreground">Carregando…</p>
+        ) : members.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Ninguém entrou ainda. Quando a pessoa usar o código, ela aparece aqui.
           </p>
@@ -164,6 +174,18 @@ function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JS
           </div>
         )}
       </Section>
+
+      {inviteOpen ? (
+        <InviteSection
+          boardId={board.id}
+          onCreated={refresh}
+          onClose={members && members.length > 0 ? () => setInviting(false) : undefined}
+        />
+      ) : (
+        <Button variant="secondary" className="w-full" onClick={() => setInviting(true)}>
+          <Ticket className="h-4 w-4" /> Convidar outra pessoa
+        </Button>
+      )}
 
       {invites.length > 0 && (
         <Section title="Códigos ainda não usados">
@@ -193,7 +215,16 @@ function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JS
   )
 }
 
-function InviteSection({ boardId, onCreated }: { boardId: string; onCreated: () => void }): JSX.Element {
+function InviteSection({
+  boardId,
+  onCreated,
+  onClose
+}: {
+  boardId: string
+  onCreated: () => void
+  /** Absent while nobody has joined: then inviting is the whole point of the dialog. */
+  onClose?: () => void
+}): JSX.Element {
   const [role, setRole] = useState<ShareRole>('editor')
   const [can, setCan] = useState<SharePermissions>({ ...FULL_PERMISSIONS })
   const [code, setCode] = useState<string | null>(null)
@@ -214,7 +245,7 @@ function InviteSection({ boardId, onCreated }: { boardId: string; onCreated: () 
   }
 
   return (
-    <Section title="Convidar alguém">
+    <Section title="Convidar outra pessoa">
       {code ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3">
@@ -231,6 +262,10 @@ function InviteSection({ boardId, onCreated }: { boardId: string; onCreated: () 
         </div>
       ) : (
         <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            O acesso escolhido aqui vale só para quem usar o código novo. Para mudar o de quem já
+            entrou, use <b>Mudar acesso</b> ao lado do nome da pessoa.
+          </p>
           <PermissionPicker
             role={role}
             can={can}
@@ -240,10 +275,22 @@ function InviteSection({ boardId, onCreated }: { boardId: string; onCreated: () 
             }}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
-          <Button variant="primary" className="w-full" onClick={() => void create()} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
-            Gerar código de convite
-          </Button>
+          <div className="flex gap-2">
+            {onClose && (
+              <Button variant="ghost" onClick={onClose}>
+                Cancelar
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={() => void create()}
+              disabled={busy}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
+              Gerar código de convite
+            </Button>
+          </div>
         </div>
       )}
     </Section>
@@ -285,7 +332,7 @@ function MemberRow({
           <p className="text-[11px] text-muted-foreground">{describeAccess(member.role, member.can)}</p>
         </div>
         {!editing && (
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
             Mudar acesso
           </Button>
         )}
