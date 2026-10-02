@@ -5,6 +5,7 @@
 
 import type { FinanceData } from './finance'
 import type { CalendarEvent, Habit, PlannerGoal, PlannerSettings } from './planner'
+import type { BoardShare } from './sync'
 
 export type ID = string
 
@@ -169,6 +170,11 @@ export interface Board {
   updatedAt: string
   archived: boolean
   order: number
+  /**
+   * Set when the board also lives in the cloud. Only the main process writes
+   * it: the screen can read it to show or hide actions, never change it.
+   */
+  shared?: BoardShare
 }
 
 /** Something attached to a card: a link, a local path, or a plain text note. */

@@ -478,6 +478,18 @@ export class Repository {
     return this.setAll(data)
   }
 
+  /**
+   * Apply a change that came from somewhere other than the screen — the
+   * cloud, for shared boards. Returning false from `change` means nothing
+   * changed: the file is left alone and null comes back, so callers skip
+   * telling the windows about a write that did not happen.
+   */
+  apply(change: (data: AppData) => boolean | void): AppData | null {
+    const data = this.getAll()
+    if (change(data) === false) return null
+    return this.setAll(data)
+  }
+
   saveProject(project: Project): AppData {
     const data = this.getAll()
     const idx = data.projects.findIndex((p) => p.id === project.id)

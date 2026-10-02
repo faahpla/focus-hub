@@ -21,7 +21,9 @@ import type {
   FinanceSettings
 } from '../../shared/finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
+import type { SharePermissions, ShareRole } from '../../shared/sync'
 import type { Repository } from '../store/repository'
+import type { SyncService } from '../services/sync-service'
 import type { BackupService } from '../services/backup-service'
 import { parseBackupDocument } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
@@ -53,9 +55,10 @@ interface Deps {
   flow: FlowService
   windows: WindowManager
   backups: BackupService
+  sync: SyncService
 }
 
-export function registerIpc({ repo, flow, windows, backups }: Deps): void {
+export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void {
   const changed = (data: AppData): AppData => {
     windows.broadcast(IPC.EVT_DATA_CHANGED, data)
     return data
@@ -82,14 +85,106 @@ export function registerIpc({ repo, flow, windows, backups }: Deps): void {
   ipcMain.handle(IPC.IDEAS_DELETE, (_e, id: string) =>
     guard('antes de excluir ideia', () => changed(repo.deleteIdea(id)))
   )
-  ipcMain.handle(IPC.BOARDS_SAVE, (_e, b: Board) => changed(repo.saveBoard(b)))
+  /*
+    Boards and cards also feed the sync. Every write here reads the record as
+    it was first: the sync sends only what changed, and a member's role is
+    checked against the change before it is applied — a refused write leaves
+    the document untouched and hands the screen the unchanged copy back.
+  */
+  const cardsBefore = (ids: string[]): Map<string, BoardCard> => {
+    const wanted = new Set(ids)
+    return new Map(
+      repo
+        .getAll()
+        .cards.filter((c) => wanted.has(c.id))
+        .map((c) => [c.id, structuredClone(c)])
+    )
+  }
+
+  const saveCards = (incoming: BoardCard[]): AppData => {
+    const ids = incoming.map((c) => c.id)
+    const before = cardsBefore(ids)
+    const current = repo.getAll()
+    for (const card of incoming) {
+      const refusal = sync.checkCardWrite(before.get(card.id), card, current)
+      if (refusal) {
+        sync.refused(refusal)
+        return changed(current)
+      }
+    }
+    const data = incoming.length === 1 ? repo.saveCard(incoming[0]) : repo.saveCards(incoming)
+    sync.cardsWritten(before, data, ids)
+    return changed(data)
+  }
+
+  ipcMain.handle(IPC.BOARDS_SAVE, (_e, b: Board) => {
+    const before = repo.getAll().boards.find((x) => x.id === b.id)
+    // Whether a board is shared is the sync's to decide, never the screen's.
+    const incoming: Board = { ...b, shared: before?.shared }
+    const refusal = sync.checkBoardWrite(before, incoming)
+    if (refusal) {
+      sync.refused(refusal)
+      return changed(repo.getAll())
+    }
+    const data = repo.saveBoard(incoming)
+    sync.boardWritten(before, incoming)
+    return changed(data)
+  })
   ipcMain.handle(IPC.BOARDS_DELETE, (_e, id: string) =>
-    guard('antes de excluir quadro', () => changed(repo.deleteBoard(id)))
+    guard('antes de excluir quadro', () => {
+      const current = repo.getAll()
+      const board = current.boards.find((x) => x.id === id)
+      const cardIds = new Set(current.cards.filter((c) => c.boardId === id).map((c) => c.id))
+      const data = repo.deleteBoard(id)
+      sync.boardDeleted(board, cardIds)
+      return changed(data)
+    })
   )
-  ipcMain.handle(IPC.CARDS_SAVE, (_e, c: BoardCard) => changed(repo.saveCard(c)))
-  ipcMain.handle(IPC.CARDS_SAVE_MANY, (_e, cards: BoardCard[]) => changed(repo.saveCards(cards)))
-  ipcMain.handle(IPC.CARDS_DELETE, (_e, id: string) =>
-    guard('antes de excluir card', () => changed(repo.deleteCard(id)))
+  ipcMain.handle(IPC.CARDS_SAVE, (_e, c: BoardCard) => saveCards([c]))
+  ipcMain.handle(IPC.CARDS_SAVE_MANY, (_e, cards: BoardCard[]) => saveCards(cards))
+  ipcMain.handle(IPC.CARDS_DELETE, (_e, id: string) => {
+    const current = repo.getAll()
+    const card = current.cards.find((c) => c.id === id)
+    const refusal = sync.checkCardDelete(card, current)
+    if (refusal) {
+      sync.refused(refusal)
+      return changed(current)
+    }
+    return guard('antes de excluir card', () => {
+      const data = repo.deleteCard(id)
+      sync.cardDeleted(card, data)
+      return changed(data)
+    })
+  })
+
+  // ---- Shared boards ----
+  ipcMain.handle(IPC.SYNC_STATUS, () => sync.status())
+  ipcMain.handle(IPC.SYNC_SIGN_UP, (_e, email: string, password: string) =>
+    sync.signUp(email, password)
+  )
+  ipcMain.handle(IPC.SYNC_SIGN_IN, (_e, email: string, password: string) =>
+    sync.signIn(email, password)
+  )
+  ipcMain.handle(IPC.SYNC_SIGN_OUT, () => sync.signOut())
+  ipcMain.handle(IPC.SYNC_SHARE_BOARD, (_e, boardId: string) => sync.shareBoard(boardId))
+  ipcMain.handle(IPC.SYNC_UNSHARE_BOARD, (_e, boardId: string) => sync.unshareBoard(boardId))
+  ipcMain.handle(IPC.SYNC_LEAVE_BOARD, (_e, boardId: string) => sync.leaveBoard(boardId))
+  ipcMain.handle(IPC.SYNC_JOIN_BOARD, (_e, code: string) => sync.joinBoard(code))
+  ipcMain.handle(
+    IPC.SYNC_CREATE_INVITE,
+    (_e, boardId: string, role: ShareRole, can: SharePermissions) =>
+      sync.createInvite(boardId, role, can)
+  )
+  ipcMain.handle(IPC.SYNC_LIST_INVITES, (_e, boardId: string) => sync.listInvites(boardId))
+  ipcMain.handle(IPC.SYNC_REVOKE_INVITE, (_e, code: string) => sync.revokeInvite(code))
+  ipcMain.handle(IPC.SYNC_LIST_MEMBERS, (_e, boardId: string) => sync.listMembers(boardId))
+  ipcMain.handle(
+    IPC.SYNC_UPDATE_MEMBER,
+    (_e, boardId: string, userId: string, role: ShareRole, can: SharePermissions) =>
+      sync.updateMember(boardId, userId, role, can)
+  )
+  ipcMain.handle(IPC.SYNC_REMOVE_MEMBER, (_e, boardId: string, userId: string) =>
+    sync.removeMember(boardId, userId)
   )
   ipcMain.handle(IPC.SESSIONS_RECORD, (_e, s: Session) => changed(repo.recordSession(s)))
   ipcMain.handle(IPC.STATS_SAVE, (_e, s: Stats) => changed(repo.saveStats(s)))

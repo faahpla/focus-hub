@@ -25,6 +25,14 @@ import type {
   FinanceSettings
 } from './finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from './planner'
+import type {
+  BoardInvite,
+  BoardMember,
+  SharePermissions,
+  ShareRole,
+  SyncResult,
+  SyncStatus
+} from './sync'
 
 export const IPC = {
   // Data / persistence
@@ -85,6 +93,22 @@ export const IPC = {
   WIN_CAPTURE: 'win:capture',
   WIN_ULTRA: 'win:ultraFocus',
 
+  // Shared boards (Supabase)
+  SYNC_STATUS: 'sync:status',
+  SYNC_SIGN_UP: 'sync:signUp',
+  SYNC_SIGN_IN: 'sync:signIn',
+  SYNC_SIGN_OUT: 'sync:signOut',
+  SYNC_SHARE_BOARD: 'sync:shareBoard',
+  SYNC_UNSHARE_BOARD: 'sync:unshareBoard',
+  SYNC_LEAVE_BOARD: 'sync:leaveBoard',
+  SYNC_JOIN_BOARD: 'sync:joinBoard',
+  SYNC_CREATE_INVITE: 'sync:createInvite',
+  SYNC_LIST_INVITES: 'sync:listInvites',
+  SYNC_REVOKE_INVITE: 'sync:revokeInvite',
+  SYNC_LIST_MEMBERS: 'sync:listMembers',
+  SYNC_UPDATE_MEMBER: 'sync:updateMember',
+  SYNC_REMOVE_MEMBER: 'sync:removeMember',
+
   // Quick capture (main -> renderer + renderer -> main)
   QUICK_CAPTURE_SAVE: 'quickCapture:save',
   QUICK_CAPTURE_CLOSE: 'quickCapture:close',
@@ -94,7 +118,8 @@ export const IPC = {
   EVT_TRAY_NEW_SESSION: 'evt:trayNewSession',
   EVT_GLOBAL_TOGGLE_PAUSE: 'evt:globalTogglePause',
   EVT_DATA_CHANGED: 'evt:dataChanged',
-  EVT_UPDATE_STATUS: 'evt:updateStatus'
+  EVT_UPDATE_STATUS: 'evt:updateStatus',
+  EVT_SYNC_STATUS: 'evt:syncStatus'
 } as const
 
 export interface FocusHubApi {
@@ -174,4 +199,33 @@ export interface FocusHubApi {
   onTrayNewSession(cb: () => void): () => void
   onGlobalTogglePause(cb: () => void): () => void
   onDataChanged(cb: (data: AppData) => void): () => void
+
+  // Shared boards. Everything here touches only boards the user shares.
+  getSyncStatus(): Promise<SyncStatus>
+  onSyncStatus(cb: (status: SyncStatus) => void): () => void
+  signUp(email: string, password: string): Promise<SyncResult>
+  signIn(email: string, password: string): Promise<SyncResult>
+  signOut(): Promise<void>
+  /** Put a board from this PC into the cloud, owned by the signed-in user. */
+  shareBoard(boardId: string): Promise<SyncResult>
+  /** Owner: take the board out of the cloud for everyone, keeping it here. */
+  unshareBoard(boardId: string): Promise<SyncResult>
+  /** Member: stop having access. The board leaves this PC. */
+  leaveBoard(boardId: string): Promise<SyncResult>
+  joinBoard(code: string): Promise<SyncResult & { boardName?: string }>
+  createInvite(
+    boardId: string,
+    role: ShareRole,
+    can: SharePermissions
+  ): Promise<SyncResult & { code?: string }>
+  listInvites(boardId: string): Promise<BoardInvite[]>
+  revokeInvite(code: string): Promise<SyncResult>
+  listMembers(boardId: string): Promise<BoardMember[]>
+  updateMember(
+    boardId: string,
+    userId: string,
+    role: ShareRole,
+    can: SharePermissions
+  ): Promise<SyncResult>
+  removeMember(boardId: string, userId: string): Promise<SyncResult>
 }

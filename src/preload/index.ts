@@ -16,6 +16,7 @@ import type {
 } from '../shared/types'
 import type { BudgetPlan, FinanceEntity, FinanceSettings } from '../shared/finance'
 import type { PlannerEntity, PlannerSettings } from '../shared/planner'
+import type { SyncStatus } from '../shared/sync'
 
 const api: FocusHubApi = {
   getAllData: () => ipcRenderer.invoke(IPC.DATA_GET_ALL),
@@ -82,7 +83,26 @@ const api: FocusHubApi = {
   onQuickCaptureOpen: (cb) => subscribe(IPC.EVT_QUICK_CAPTURE_OPEN, () => cb()),
   onTrayNewSession: (cb) => subscribe(IPC.EVT_TRAY_NEW_SESSION, () => cb()),
   onGlobalTogglePause: (cb) => subscribe(IPC.EVT_GLOBAL_TOGGLE_PAUSE, () => cb()),
-  onDataChanged: (cb) => subscribe(IPC.EVT_DATA_CHANGED, (_e, data) => cb(data as AppData))
+  onDataChanged: (cb) => subscribe(IPC.EVT_DATA_CHANGED, (_e, data) => cb(data as AppData)),
+
+  getSyncStatus: () => ipcRenderer.invoke(IPC.SYNC_STATUS),
+  onSyncStatus: (cb) =>
+    subscribe(IPC.EVT_SYNC_STATUS, (_e, status) => cb(status as SyncStatus)),
+  signUp: (email, password) => ipcRenderer.invoke(IPC.SYNC_SIGN_UP, email, password),
+  signIn: (email, password) => ipcRenderer.invoke(IPC.SYNC_SIGN_IN, email, password),
+  signOut: () => ipcRenderer.invoke(IPC.SYNC_SIGN_OUT),
+  shareBoard: (boardId) => ipcRenderer.invoke(IPC.SYNC_SHARE_BOARD, boardId),
+  unshareBoard: (boardId) => ipcRenderer.invoke(IPC.SYNC_UNSHARE_BOARD, boardId),
+  leaveBoard: (boardId) => ipcRenderer.invoke(IPC.SYNC_LEAVE_BOARD, boardId),
+  joinBoard: (code) => ipcRenderer.invoke(IPC.SYNC_JOIN_BOARD, code),
+  createInvite: (boardId, role, can) =>
+    ipcRenderer.invoke(IPC.SYNC_CREATE_INVITE, boardId, role, can),
+  listInvites: (boardId) => ipcRenderer.invoke(IPC.SYNC_LIST_INVITES, boardId),
+  revokeInvite: (code) => ipcRenderer.invoke(IPC.SYNC_REVOKE_INVITE, code),
+  listMembers: (boardId) => ipcRenderer.invoke(IPC.SYNC_LIST_MEMBERS, boardId),
+  updateMember: (boardId, userId, role, can) =>
+    ipcRenderer.invoke(IPC.SYNC_UPDATE_MEMBER, boardId, userId, role, can),
+  removeMember: (boardId, userId) => ipcRenderer.invoke(IPC.SYNC_REMOVE_MEMBER, boardId, userId)
 }
 
 function subscribe(channel: string, listener: (...args: unknown[]) => void): () => void {

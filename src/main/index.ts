@@ -7,6 +7,7 @@ import { registerIpc } from './ipc/register-ipc'
 import { registerAppScheme, serveLocalMedia, serveRenderer } from './register-protocol'
 import { BackupService } from './services/backup-service'
 import { FlowService } from './services/flow-service'
+import { SyncService } from './services/sync-service'
 import { UpdateService } from './services/update-service'
 import { Repository } from './store/repository'
 import { WindowManager } from './windows/window-manager'
@@ -263,7 +264,16 @@ if (!gotLock) {
     setInterval(() => backups.snapshot(repo.getAll(), 'automático'), 10 * 60 * 1000)
     app.on('before-quit', () => backups.snapshot(repo.getAll(), 'ao fechar o app'))
 
-    registerIpc({ repo, flow, windows, backups })
+    // Shared boards: changes from the cloud reach the windows the same way a
+    // local write does, so the screen never needs to know where one came from.
+    logLaunch('  etapa: sincronizacao')
+    const sync = new SyncService(
+      repo,
+      (data) => windows.broadcast(IPC.EVT_DATA_CHANGED, data),
+      (status) => windows.broadcast(IPC.EVT_SYNC_STATUS, status)
+    )
+    registerIpc({ repo, flow, windows, backups, sync })
+    void sync.start()
     ipcMain.handle(IPC.APP_GET_INFO, async () => ({
       isPackaged: app.isPackaged,
       elevated: await flow.isElevated(),
