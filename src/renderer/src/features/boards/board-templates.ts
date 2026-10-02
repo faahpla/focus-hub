@@ -1,4 +1,5 @@
 import type { Board, BoardCard, BoardColumn } from '@shared/types'
+import type { SharePermissions } from '@shared/sync'
 import { uid } from '@/lib/utils'
 
 /**
@@ -20,6 +21,18 @@ export function isCardDone(card: BoardCard, columns: BoardColumn[]): boolean {
  */
 export function isCardCancelled(card: BoardCard, columns: BoardColumn[]): boolean {
   return columns.find((c) => c.id === card.columnId)?.cancelled === true
+}
+
+/**
+ * Whether this PC may do something on a board. Boards that are not shared,
+ * and boards the user owns, allow everything; a member gets what the owner
+ * granted. Reading, editing and moving cards are always allowed — they have
+ * no flag. The main process and the database enforce the same rules; this is
+ * so the screen never offers what would be refused.
+ */
+export function canOnBoard(board: Board | undefined, action: keyof SharePermissions): boolean {
+  const share = board?.shared
+  return !share || share.role === 'owner' || share.can[action]
 }
 
 /** Palette used for new columns, cycled in order. */

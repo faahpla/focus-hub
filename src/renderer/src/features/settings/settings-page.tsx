@@ -19,6 +19,9 @@ import { MusicSourcesEditor } from '@/features/music/music-sources-editor'
 import { AppListEditor, SiteListEditor } from '@/features/projects/list-editors'
 import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
+import { useSyncStore } from '@/stores/sync-store'
+import { AccountForm } from '@/features/sharing/account-form'
+import type { SyncState } from '@shared/sync'
 import type { BackupInfo, ThemeName, UpdateStatus } from '@shared/types'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -311,6 +314,11 @@ export function SettingsPage(): JSX.Element {
           <UpdatesRow version={appInfo?.version} isPackaged={appInfo?.isPackaged} />
         </Section>
 
+        {/* Account for shared boards */}
+        <Section title="Conta e quadros compartilhados">
+          <AccountRow />
+        </Section>
+
         {/* Backup */}
         <Section title="Backup">
           <Row label="Seus dados" desc="Exporte ou restaure tudo em um arquivo JSON.">
@@ -532,6 +540,77 @@ function UpdatesRow({
         </div>
       )}
     </div>
+  )
+}
+
+const SYNC_LABEL: Record<SyncState, string> = {
+  unconfigured: 'Indisponível nesta cópia',
+  'signed-out': 'Fora da conta',
+  connecting: 'Conectando…',
+  online: 'Conectado',
+  offline: 'Sem conexão — as mudanças esperam e sobem depois'
+}
+
+/**
+ * The account behind shared boards. Only shared boards ever touch it: the
+ * rest of the app works the same signed in or out.
+ */
+function AccountRow(): JSX.Element {
+  const status = useSyncStore((s) => s.status)
+  const [busy, setBusy] = useState(false)
+
+  if (status.state === 'unconfigured') {
+    return (
+      <div className="px-5 py-4 text-sm text-muted-foreground">
+        Esta cópia do Focus HUB foi gerada sem a conexão com o servidor, então o
+        compartilhamento de quadros não está disponível nela.
+      </div>
+    )
+  }
+
+  if (status.state === 'signed-out') {
+    return (
+      <div className="space-y-3 px-5 py-4">
+        <p className="text-xs text-muted-foreground">
+          Para compartilhar um quadro, ou entrar num quadro de outra pessoa. Seus outros dados
+          continuam só neste PC.
+        </p>
+        <div className="max-w-sm">
+          <AccountForm />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Row label={status.email ?? 'Conta'} desc={SYNC_LABEL[status.state]}>
+        <Button
+          variant="secondary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            await window.focusHub.signOut()
+            setBusy(false)
+          }}
+        >
+          Sair da conta
+        </Button>
+      </Row>
+      {status.pending > 0 && (
+        <Row
+          label={`${status.pending} mudança(s) esperando para subir`}
+          desc="Vão sozinhas assim que a conexão permitir. Nada se perde fechando o app."
+        >
+          <span />
+        </Row>
+      )}
+      {status.error && (
+        <div className="px-5 py-3 text-xs text-muted-foreground">
+          Último aviso: <span className="text-foreground">{status.error}</span>
+        </div>
+      )}
+    </>
   )
 }
 

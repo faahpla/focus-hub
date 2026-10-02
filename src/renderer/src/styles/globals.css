@@ -34,6 +34,10 @@
     --destructive: 0 72% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    /* The orange the app already used for warnings, as a token. */
+    --warning: 27 96% 61%;
+    --warning-foreground: 240 20% 6%;
+
     --border: 240 14% 18%;
     --input: 240 14% 20%;
     --ring: 250 82% 68%;

@@ -43,7 +43,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAppStore } from '@/stores/app-store'
 import type { Board, BoardCard, BoardColumn } from '@shared/types'
-import { COLUMN_COLORS, isCardCancelled, isCardDone, makeColumn } from './board-templates'
+import {
+  COLUMN_COLORS,
+  canOnBoard,
+  isCardCancelled,
+  isCardDone,
+  makeColumn
+} from './board-templates'
 import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
@@ -83,6 +89,9 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
   const saveCard = useAppStore((s) => s.saveCard)
   const saveCards = useAppStore((s) => s.saveCards)
   const saveBoard = useAppStore((s) => s.saveBoard)
+  // On a shared board a member only gets the controls their role allows.
+  const mayManageColumns = canOnBoard(board, 'manageColumns')
+  const mayCreateCards = canOnBoard(board, 'createCards')
 
   const cards = useMemo(
     () => allCards.filter((c) => c.boardId === board.id),
@@ -279,6 +288,8 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               cardIds={lanes[column.id] ?? []}
               cardsById={cardsById}
               canDelete={columns.length > 1}
+              canManage={mayManageColumns}
+              canCreate={mayCreateCards}
               onAddCard={(title) => addCard(column.id, title)}
               onRename={(name) => patchColumn(column.id, { name })}
               onRecolor={(color) => patchColumn(column.id, { color })}
@@ -296,12 +307,14 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
             />
           ))}
 
-          <button
-            onClick={addColumn}
-            className="no-drag flex h-11 w-[280px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground"
-          >
-            <Plus className="h-4 w-4" /> Nova coluna
-          </button>
+          {mayManageColumns && (
+            <button
+              onClick={addColumn}
+              className="no-drag flex h-11 w-[280px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" /> Nova coluna
+            </button>
+          )}
         </div>
 
         <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2,0,0,1)' }}>
@@ -345,6 +358,8 @@ function Column({
   cardIds,
   cardsById,
   canDelete,
+  canManage,
+  canCreate,
   onAddCard,
   onRename,
   onRecolor,
@@ -360,6 +375,10 @@ function Column({
   cardIds: string[]
   cardsById: Map<string, BoardCard>
   canDelete: boolean
+  /** Rename, recolour, mark and delete this column. Off for members without the flag. */
+  canManage: boolean
+  /** Add cards here. Off for members without the flag. */
+  canCreate: boolean
   onAddCard: (title: string) => void
   onRename: (name: string) => void
   onRecolor: (color: string) => void
@@ -423,6 +442,7 @@ function Column({
         ) : (
           <button
             onDoubleClick={() => {
+              if (!canManage) return
               setDraft(column.name)
               setRenaming(true)
             }}
@@ -431,7 +451,7 @@ function Column({
               column.done && 'text-success',
               column.cancelled && 'text-destructive'
             )}
-            title="Duplo clique para renomear"
+            title={canManage ? 'Duplo clique para renomear' : undefined}
           >
             {column.name}
           </button>
@@ -439,64 +459,66 @@ function Column({
         <span className="shrink-0 rounded-md bg-surface-elevated px-1.5 py-0.5 text-[11px] tabular text-muted-foreground">
           {cardIds.length}
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="no-drag flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground">
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() => {
-                setDraft(column.name)
-                setRenaming(true)
-              }}
-            >
-              Renomear
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onToggleDone} active={column.done === true}>
-              <span className="flex items-center gap-2">
-                <CircleCheckBig className="h-4 w-4" />
-                Coluna de conclusão
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={onToggleCancelled}
-              active={column.cancelled === true}
-            >
-              <span className="flex items-center gap-2">
-                <Ban className="h-4 w-4" />
-                Coluna de cancelados
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <div className="flex gap-1.5 px-2.5 py-2">
-              {COLUMN_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => onRecolor(color)}
-                  className={cn(
-                    'h-5 w-5 rounded-full transition-transform hover:scale-110',
-                    column.color === color && 'ring-2 ring-foreground/70 ring-offset-2 ring-offset-surface-elevated'
-                  )}
-                  style={{ backgroundColor: `hsl(${color})` }}
-                  aria-label={`Cor ${color}`}
-                />
-              ))}
-            </div>
-            {canDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={onDelete}
-                  className="text-destructive data-[highlighted]:bg-destructive/10"
-                >
-                  Excluir coluna
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="no-drag flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  setDraft(column.name)
+                  setRenaming(true)
+                }}
+              >
+                Renomear
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onToggleDone} active={column.done === true}>
+                <span className="flex items-center gap-2">
+                  <CircleCheckBig className="h-4 w-4" />
+                  Coluna de conclusão
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={onToggleCancelled}
+                active={column.cancelled === true}
+              >
+                <span className="flex items-center gap-2">
+                  <Ban className="h-4 w-4" />
+                  Coluna de cancelados
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="flex gap-1.5 px-2.5 py-2">
+                {COLUMN_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => onRecolor(color)}
+                    className={cn(
+                      'h-5 w-5 rounded-full transition-transform hover:scale-110',
+                      column.color === color && 'ring-2 ring-foreground/70 ring-offset-2 ring-offset-surface-elevated'
+                    )}
+                    style={{ backgroundColor: `hsl(${color})` }}
+                    aria-label={`Cor ${color}`}
+                  />
+                ))}
+              </div>
+              {canDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={onDelete}
+                    className="text-destructive data-[highlighted]:bg-destructive/10"
+                  >
+                    Excluir coluna
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Cards */}
@@ -578,12 +600,14 @@ function Column({
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setAdding(true)}
-            className="no-drag flex h-8 shrink-0 items-center gap-1.5 rounded-xl px-2 text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" /> Adicionar card
-          </button>
+          canCreate && (
+            <button
+              onClick={() => setAdding(true)}
+              className="no-drag flex h-8 shrink-0 items-center gap-1.5 rounded-xl px-2 text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" /> Adicionar card
+            </button>
+          )
         )}
       </div>
     </div>

@@ -392,7 +392,7 @@ export class SyncService {
     return { ok: true }
   }
 
-  async joinBoard(code: string): Promise<SyncResult & { boardName?: string }> {
+  async joinBoard(code: string): Promise<SyncResult & { boardId?: string; boardName?: string }> {
     const sb = this.sb
     if (!sb) return UNCONFIGURED
     if (!this.userId) return SIGNED_OUT
@@ -400,7 +400,7 @@ export class SyncService {
     if (error) return this.refuse(error)
     await this.pull()
     const board = this.repo.getAll().boards.find((b) => b.id === data)
-    return { ok: true, boardName: board?.name }
+    return { ok: true, boardId: data as string, boardName: board?.name }
   }
 
   async createInvite(

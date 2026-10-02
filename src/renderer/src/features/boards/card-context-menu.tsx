@@ -19,7 +19,7 @@ import { useToastStore } from '@/stores/toast-store'
 import { cn, uid } from '@/lib/utils'
 import type { Board, BoardCard, BoardColumn } from '@shared/types'
 import { addDaysToKey, dayLabel, today } from '@/lib/dates'
-import { isCardDone } from './board-templates'
+import { canOnBoard, isCardDone } from './board-templates'
 
 export interface ContextTarget {
   cardId: string
@@ -61,10 +61,16 @@ export function CardContextMenu({
   const pushToast = useToastStore((s) => s.push)
   const ref = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>({ step: 'root' })
+  // Deleting asks twice: with a shared board, one stray click takes the card
+  // away from everyone.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const card = cards.find((c) => c.id === target.cardId)
+  const mayCreate = canOnBoard(board, 'createCards')
+  const mayDelete = canOnBoard(board, 'deleteCards')
+  // A card can only go where this PC may create cards.
   const otherBoards = boards
-    .filter((b) => b.id !== board.id && !b.archived)
+    .filter((b) => b.id !== board.id && !b.archived && canOnBoard(b, 'createCards'))
     .sort((a, b) => a.order - b.order)
 
   useEffect(() => {
@@ -210,10 +216,13 @@ export function CardContextMenu({
           <Item icon={<Check className="h-3.5 w-3.5" />} onClick={() => patch({ done: !finished })}>
             {finished ? 'Marcar como não concluído' : 'Marcar como concluído'}
           </Item>
-          <Item icon={<Copy className="h-3.5 w-3.5" />} onClick={duplicate}>
-            Duplicar card
-          </Item>
-          {otherBoards.length > 0 && (
+          {mayCreate && (
+            <Item icon={<Copy className="h-3.5 w-3.5" />} onClick={duplicate}>
+              Duplicar card
+            </Item>
+          )}
+          {/* Taking a card off a shared board removes it for everyone else. */}
+          {otherBoards.length > 0 && mayDelete && (
             <Item
               icon={<FolderInput className="h-3.5 w-3.5" />}
               trailing={<ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -222,16 +231,19 @@ export function CardContextMenu({
               Mover para outro quadro
             </Item>
           )}
-          <Item
-            icon={<Trash2 className="h-3.5 w-3.5" />}
-            destructive
-            onClick={() => {
-              void deleteCard(card.id)
-              onClose()
-            }}
-          >
-            Excluir card
-          </Item>
+          {mayDelete && (
+            <Item
+              icon={<Trash2 className="h-3.5 w-3.5" />}
+              destructive
+              onClick={() => {
+                if (!confirmingDelete) return setConfirmingDelete(true)
+                void deleteCard(card.id)
+                onClose()
+              }}
+            >
+              {confirmingDelete ? 'Clique de novo para excluir' : 'Excluir card'}
+            </Item>
+          )}
 
           <div className="my-1 h-px bg-border" />
           <Item

@@ -212,7 +212,7 @@ export interface FocusHubApi {
   unshareBoard(boardId: string): Promise<SyncResult>
   /** Member: stop having access. The board leaves this PC. */
   leaveBoard(boardId: string): Promise<SyncResult>
-  joinBoard(code: string): Promise<SyncResult & { boardName?: string }>
+  joinBoard(code: string): Promise<SyncResult & { boardId?: string; boardName?: string }>
   createInvite(
     boardId: string,
     role: ShareRole,

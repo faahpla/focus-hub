@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, KanbanSquare, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, KanbanSquare, Pencil, Plus, Ticket, Trash2, Users } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,8 @@ import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { BoardDialog } from './board-dialog'
 import { BoardView } from './board-view'
+import { JoinDialog } from '@/features/sharing/join-dialog'
+import { ShareDialog } from '@/features/sharing/share-dialog'
 
 const LAST_BOARD_KEY = 'focus-hub:last-board'
 
@@ -27,6 +29,8 @@ export function BoardsPage(): JSX.Element {
   )
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [joining, setJoining] = useState(false)
 
   const active = boards.find((b) => b.id === selectedId) ?? boards[0]
 
@@ -48,13 +52,20 @@ export function BoardsPage(): JSX.Element {
         <Button variant="primary" className="mt-6" onClick={() => setCreating(true)}>
           <Plus className="h-4 w-4" /> Criar meu primeiro quadro
         </Button>
+        {/* Someone invited to a board starts here, with nothing of their own yet. */}
+        <Button variant="ghost" className="mt-2" onClick={() => setJoining(true)}>
+          <Ticket className="h-4 w-4" /> Tenho um código de convite
+        </Button>
 
         {creating && (
           <BoardDialog onClose={() => setCreating(false)} onCreated={setSelectedId} />
         )}
+        {joining && <JoinDialog onClose={() => setJoining(false)} onJoined={setSelectedId} />}
       </div>
     )
   }
+
+  const member = active?.shared?.role === 'member'
 
   const project = active?.projectId
     ? projects.find((p) => p.id === active.projectId)
@@ -97,6 +108,12 @@ export function BoardsPage(): JSX.Element {
                       style={{ color: `hsl(${b.color})` }}
                     />
                     {b.name}
+                    {b.shared && (
+                      <Users
+                        className="h-3 w-3 text-muted-foreground"
+                        aria-label="Compartilhado"
+                      />
+                    )}
                   </span>
                 </DropdownMenuItem>
               ))}
@@ -104,6 +121,11 @@ export function BoardsPage(): JSX.Element {
               <DropdownMenuItem onSelect={() => setCreating(true)}>
                 <span className="flex items-center gap-2">
                   <Plus className="h-4 w-4" /> Novo quadro
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setJoining(true)}>
+                <span className="flex items-center gap-2">
+                  <Ticket className="h-4 w-4" /> Entrar com código
                 </span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -125,12 +147,24 @@ export function BoardsPage(): JSX.Element {
           <span className="shrink-0 text-xs text-muted-foreground">
             {cardCount} {cardCount === 1 ? 'card' : 'cards'}
           </span>
+          {active?.shared && (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary">
+              <Users className="h-3.5 w-3.5" />
+              {member ? 'Compartilhado com você' : 'Compartilhado'}
+            </span>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" /> Editar
+          <Button size="sm" variant="secondary" onClick={() => setSharing(true)}>
+            <Users className="h-3.5 w-3.5" /> {active?.shared ? 'Acesso' : 'Compartilhar'}
           </Button>
+          {/* The name and look of a shared board are its owner's. */}
+          {!member && (
+            <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
+          )}
           <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Novo quadro
           </Button>
@@ -141,9 +175,16 @@ export function BoardsPage(): JSX.Element {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Excluir “{active?.name}”?</DropdownMenuLabel>
-              <div className="px-2.5 pb-1 text-xs text-muted-foreground">
-                Os cards deste quadro somem. Tarefas vinculadas continuam existindo.
+              {/* Deleting means three different things depending on whose board it is. */}
+              <DropdownMenuLabel>
+                {member ? `Sair de “${active?.name}”?` : `Excluir “${active?.name}”?`}
+              </DropdownMenuLabel>
+              <div className="max-w-[18rem] px-2.5 pb-1 text-xs text-muted-foreground">
+                {member
+                  ? 'O quadro some deste PC. O dono e as outras pessoas continuam com ele.'
+                  : active?.shared
+                    ? 'Ele é compartilhado: some para todo mundo que tem acesso, não só para você.'
+                    : 'Os cards deste quadro somem. Tarefas vinculadas continuam existindo.'}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -154,7 +195,11 @@ export function BoardsPage(): JSX.Element {
                   setSelectedId(boards.find((b) => b.id !== active.id)?.id ?? null)
                 }}
               >
-                Sim, excluir quadro
+                {member
+                  ? 'Sim, sair do quadro'
+                  : active?.shared
+                    ? 'Sim, excluir para todos'
+                    : 'Sim, excluir quadro'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -166,6 +211,8 @@ export function BoardsPage(): JSX.Element {
 
       {creating && <BoardDialog onClose={() => setCreating(false)} onCreated={setSelectedId} />}
       {editing && active && <BoardDialog board={active} onClose={() => setEditing(false)} />}
+      {sharing && active && <ShareDialog board={active} onClose={() => setSharing(false)} />}
+      {joining && <JoinDialog onClose={() => setJoining(false)} onJoined={setSelectedId} />}
     </div>
   )
 }

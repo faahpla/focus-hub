@@ -17,6 +17,7 @@ import { SettingsPage } from '@/features/settings/settings-page'
 import { QuickCapturePage } from '@/features/quick-capture/quick-capture-page'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
+import { useSyncStore } from '@/stores/sync-store'
 import { useToastStore } from '@/stores/toast-store'
 import { useThemeEffect } from '@/hooks/use-theme'
 
@@ -40,6 +41,8 @@ function MainApp(): JSX.Element {
   useEffect(() => {
     void init()
   }, [init])
+
+  useEffect(() => useSyncStore.getState().init(), [])
 
   useEffect(() => {
     const offTray = window.focusHub.onTrayNewSession(() => navigate('/'))

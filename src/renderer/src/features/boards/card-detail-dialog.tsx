@@ -42,7 +42,7 @@ import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
-import { isCardCancelled, isCardDone } from './board-templates'
+import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
 
@@ -108,6 +108,7 @@ function CardEditor({
 
   const [tagDraft, setTagDraft] = useState('')
   const [readerOpen, setReaderOpen] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [pane, setPane] = useState<'Roteiro' | 'Resumo'>('Roteiro')
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
 
@@ -637,16 +638,30 @@ function CardEditor({
           </div>
 
           <div className="flex shrink-0 items-center justify-between border-t border-border px-6 py-3">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void deleteCard(card.id)
-                onClose()
-              }}
-              className="text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" /> Excluir card
-            </Button>
+            {canOnBoard(board, 'deleteCards') ? (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={confirmingDelete ? 'destructive' : 'ghost'}
+                  onClick={() => {
+                    // Asks twice: on a shared board this takes the card from everyone.
+                    if (!confirmingDelete) return setConfirmingDelete(true)
+                    void deleteCard(card.id)
+                    onClose()
+                  }}
+                  className={cn(!confirmingDelete && 'text-destructive hover:bg-destructive/10')}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {confirmingDelete ? 'Sim, excluir card' : 'Excluir card'}
+                </Button>
+                {confirmingDelete && (
+                  <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <span />
+            )}
             <Button variant="primary" onClick={onClose}>
               Concluído
             </Button>
