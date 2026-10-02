@@ -136,6 +136,13 @@ grant select, insert, update, delete
   on public.boards, public.board_members, public.board_invites, public.cards
   to authenticated;
 
+-- Supabase's defaults hand authenticated every privilege on new tables,
+-- TRUNCATE included — and TRUNCATE empties a table past row level security.
+-- The API cannot issue it, but nothing here needs it either.
+revoke truncate, trigger, references
+  on public.boards, public.board_members, public.board_invites, public.cards
+  from authenticated;
+
 -- boards ----------------------------------------------------------------------
 drop policy if exists boards_select on public.boards;
 create policy boards_select on public.boards
