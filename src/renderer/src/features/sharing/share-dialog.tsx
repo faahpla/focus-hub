@@ -30,8 +30,11 @@ import {
   type SharePermissions,
   type ShareRole
 } from '@shared/sync'
+import { useAppStore } from '@/stores/app-store'
 import { AccountForm } from './account-form'
 import { PermissionPicker, describeAccess } from './permission-picker'
+import { PERSON_COLORS, peopleOf } from './people'
+import { PersonAvatar } from './person-badge'
 
 /**
  * Everything about sharing one board, in one place: signing in if needed,
@@ -175,6 +178,8 @@ function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JS
         )}
       </Section>
 
+      <ColorsSection board={board} />
+
       {inviteOpen ? (
         <InviteSection
           boardId={board.id}
@@ -212,6 +217,58 @@ function OwnerPanel({ board, onDone }: { board: Board; onDone: () => void }): JS
         />
       </Section>
     </>
+  )
+}
+
+/**
+ * The colour each person wears on this board's cards. Stored with the board,
+ * so the pick shows the same on every PC — which is why only the owner, who
+ * can change the board, gets to make it.
+ */
+function ColorsSection({ board }: { board: Board }): JSX.Element | null {
+  const me = useSyncStore((s) => s.status.userId)
+  const saveBoard = useAppStore((s) => s.saveBoard)
+  const people = peopleOf(board, me)
+  if (people.length === 0) return null
+
+  const pick = (userId: string, color: string): void => {
+    void saveBoard({
+      ...board,
+      personColors: { ...(board.personColors ?? {}), [userId]: color }
+    })
+  }
+
+  return (
+    <Section title="Cores">
+      <p className="mb-2.5 text-xs text-muted-foreground">
+        A cor de cada pessoa nos cards deste quadro — igual no PC de todo mundo.
+      </p>
+      <div className="space-y-2">
+        {people.map((person) => (
+          <div key={person.userId} className="flex items-center gap-3">
+            <PersonAvatar person={person} size="md" />
+            <span className="w-24 truncate text-sm" title={person.email}>
+              {person.label}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {PERSON_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => pick(person.userId, color)}
+                  title="Usar esta cor"
+                  className={cn(
+                    'no-drag h-5 w-5 rounded-full transition-transform hover:scale-110',
+                    person.color === color &&
+                      'ring-2 ring-foreground ring-offset-2 ring-offset-surface-elevated'
+                  )}
+                  style={{ backgroundColor: `hsl(${color})` }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
 

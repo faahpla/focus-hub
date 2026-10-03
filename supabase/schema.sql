@@ -483,3 +483,15 @@ $$;
 
 revoke execute on function public.my_board_people() from public, anon;
 grant execute on function public.my_board_people() to authenticated;
+
+
+-- -----------------------------------------------------------------------------
+-- The colour each person wears on a board, chosen by the owner.
+--
+-- On the board rather than on the person, so one owner's choice reaches
+-- every PC that opens the board and nobody can repaint someone else's
+-- boards. A person missing from the map falls back to an automatic colour.
+-- -----------------------------------------------------------------------------
+
+alter table public.boards
+  add column if not exists person_colors jsonb not null default '{}'::jsonb;

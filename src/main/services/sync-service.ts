@@ -183,13 +183,17 @@ function removeBoard(data: AppData, boardId: string): void {
 
 function cloudBoardFields(
   row: BoardRow
-): Pick<Board, 'name' | 'icon' | 'color' | 'description' | 'columns' | 'updatedAt'> {
+): Pick<
+  Board,
+  'name' | 'icon' | 'color' | 'description' | 'columns' | 'personColors' | 'updatedAt'
+> {
   return {
     name: row.name,
     icon: row.icon,
     color: row.color,
     description: row.description ?? undefined,
     columns: row.columns,
+    personColors: row.person_colors ?? {},
     updatedAt: row.updated_at
   }
 }
@@ -707,6 +711,9 @@ export class SyncService {
     if (!before || !share || share.role === 'owner') return null
     const look = (b: Board): unknown[] => [b.name, b.icon, b.color, b.description ?? null]
     if (!sameValue(look(before), look(after))) return 'Só o dono muda o nome e a aparência do quadro.'
+    if (!sameValue(before.personColors ?? {}, after.personColors ?? {})) {
+      return 'Só o dono do quadro escolhe as cores das pessoas.'
+    }
     if (!sameValue(before.columns, after.columns) && !share.can.manageColumns) {
       return 'Seu acesso não permite mexer nas colunas.'
     }

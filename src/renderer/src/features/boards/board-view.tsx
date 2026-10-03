@@ -701,8 +701,15 @@ function CardBody({
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
+      // The person's colour as a variable, so the tint below keeps a hover state.
+      style={assignee ? ({ '--tint': assignee.color } as React.CSSProperties) : undefined}
       className={cn(
         'group/card relative cursor-grab select-none rounded-xl border border-border/70 bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface-hover active:cursor-grabbing',
+        // Lightly tinted in the person's colour — unless done or dropped,
+        // whose own tint says more about the card than whose it is.
+        assignee &&
+          !struck &&
+          'border-[hsl(var(--tint)/0.3)] bg-[hsl(var(--tint)/0.08)] hover:border-[hsl(var(--tint)/0.45)] hover:bg-[hsl(var(--tint)/0.14)]',
         finished && !dropped && 'border-success/25 bg-success/[0.06] opacity-70 hover:opacity-100',
         dropped && 'border-destructive/25 bg-destructive/[0.06] opacity-60 hover:opacity-100',
         dragging && 'border-primary/50 bg-surface-elevated shadow-elevated'

@@ -175,6 +175,12 @@ export interface Board {
    * it: the screen can read it to show or hide actions, never change it.
    */
   shared?: BoardShare
+  /**
+   * The colour each person wears on this board, by account id, chosen by the
+   * owner. Synced with the board, so every PC paints a person the same way.
+   * Anyone missing here gets an automatic colour.
+   */
+  personColors?: Record<string, string>
 }
 
 /** Something attached to a card: a link, a local path, or a plain text note. */

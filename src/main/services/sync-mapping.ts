@@ -26,9 +26,17 @@ export interface BoardRow {
   color: string
   description: string | null
   columns: BoardColumn[]
+  /** Owner-chosen colour per person, by account id. Absent on rows from before it existed. */
+  person_colors?: Record<string, string>
   created_at: string
   updated_at: string
 }
+
+/** The parts of a board the cloud keeps. Order, archiving and project stay local. */
+export type BoardFields = Pick<
+  BoardRow,
+  'name' | 'icon' | 'color' | 'description' | 'columns' | 'person_colors'
+>
 
 export interface MemberRow {
   board_id: string
@@ -179,14 +187,14 @@ export function applyPatch(card: BoardCard, patch: CardPatch): BoardCard {
   return next as unknown as BoardCard
 }
 
-/** The parts of a board the cloud keeps. Order, archiving and project stay local. */
-export function boardFields(board: Board): Pick<BoardRow, 'name' | 'icon' | 'color' | 'description' | 'columns'> {
+export function boardFields(board: Board): BoardFields {
   return {
     name: board.name,
     icon: board.icon,
     color: board.color,
     description: board.description ?? null,
-    columns: board.columns
+    columns: board.columns,
+    person_colors: board.personColors ?? {}
   }
 }
 

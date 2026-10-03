@@ -5,7 +5,7 @@ import {
   cardToRow,
   mergePatch,
   rowToCard,
-  type BoardRow,
+  type BoardFields,
   type CardPatch,
   type CardRow
 } from './sync-mapping'
@@ -17,7 +17,7 @@ export type SyncOp =
   | {
       kind: 'board-update'
       id: string
-      fields: Pick<BoardRow, 'name' | 'icon' | 'color' | 'description' | 'columns'>
+      fields: BoardFields
     }
   | { kind: 'board-columns'; id: string; columns: BoardColumn[] }
   | { kind: 'board-delete'; id: string }

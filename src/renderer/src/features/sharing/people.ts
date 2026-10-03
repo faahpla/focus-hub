@@ -11,14 +11,27 @@ export interface Person extends SharePerson {
   isMe: boolean
 }
 
-/** The owner is always the app's own violet, on every PC that shows the board. */
-const OWNER_COLOR = '250 82% 68%'
-
 /**
- * Members draw from colours that sit far from the owner's violet and from
- * each other, so two people never read as one at a glance.
+ * The colours a person can wear. Spread far apart on the wheel so two people
+ * never read as one, and clear of the success green and destructive red that
+ * already mean "done" and "dropped" on a card.
  */
-const MEMBER_COLORS = ['27 96% 61%', '172 66% 45%', '330 81% 64%', '199 89% 58%', '84 70% 50%']
+export const PERSON_COLORS = [
+  '250 82% 68%', // violet — the app's own, the owner's default
+  '27 96% 61%', // orange
+  '172 66% 45%', // teal
+  '330 81% 64%', // pink
+  '199 89% 58%', // sky
+  '48 96% 53%', // yellow
+  '280 70% 66%', // purple
+  '214 20% 62%' // slate
+] as const
+
+/** Until the owner picks, the owner is the app's own violet on every PC. */
+const OWNER_COLOR = PERSON_COLORS[0]
+
+/** Members' automatic colours, everything but the owner's. */
+const MEMBER_COLORS = PERSON_COLORS.slice(1, 5)
 
 /**
  * A member's colour comes from their account id, not from list order: both
@@ -30,7 +43,7 @@ function colorFor(userId: string): string {
   return MEMBER_COLORS[hash % MEMBER_COLORS.length]
 }
 
-function toPerson(p: SharePerson, me: string | undefined): Person {
+function toPerson(p: SharePerson, me: string | undefined, chosen: string | undefined): Person {
   const name = p.email.split('@')[0] || p.email || '?'
   const letters = name.replace(/[^A-Za-z0-9]/g, '')
   return {
@@ -38,7 +51,8 @@ function toPerson(p: SharePerson, me: string | undefined): Person {
     isMe: p.userId === me,
     label: p.userId === me ? 'você' : name,
     initials: (letters.slice(0, 2) || '?').toUpperCase(),
-    color: p.isOwner ? OWNER_COLOR : colorFor(p.userId)
+    // The owner's pick wins; otherwise the automatic colour both PCs agree on.
+    color: chosen ?? (p.isOwner ? OWNER_COLOR : colorFor(p.userId))
   }
 }
 
@@ -47,7 +61,7 @@ export function peopleOf(board: Board | undefined, me: string | undefined): Pers
   const people = board?.shared?.people ?? []
   return [...people]
     .sort((a, b) => Number(b.isOwner) - Number(a.isOwner))
-    .map((p) => toPerson(p, me))
+    .map((p) => toPerson(p, me, board?.personColors?.[p.userId]))
 }
 
 /**
