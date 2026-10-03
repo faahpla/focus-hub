@@ -457,3 +457,29 @@ drop policy if exists attachments_delete on storage.objects;
 create policy attachments_delete on storage.objects
   for delete to authenticated
   using (bucket_id = 'attachments' and public.board_can((storage.foldername(name))[1], 'edit'));
+
+
+-- -----------------------------------------------------------------------------
+-- People on each board, for showing who a card is assigned to.
+--
+-- Members cannot read accounts, so the owner's e-mail is otherwise out of
+-- their reach. This hands over exactly that — owner and members of the
+-- boards the caller can open, nothing about anyone else.
+-- -----------------------------------------------------------------------------
+
+create or replace function public.my_board_people()
+returns table (board_id text, user_id uuid, email text, is_owner boolean)
+language sql stable security definer set search_path = public
+as $$
+  select b.id, b.owner_id, u.email::text, true
+    from boards b
+    join auth.users u on u.id = b.owner_id
+   where public.board_can(b.id, 'read')
+  union all
+  select m.board_id, m.user_id, m.email, false
+    from board_members m
+   where public.board_can(m.board_id, 'read')
+$$;
+
+revoke execute on function public.my_board_people() from public, anon;
+grant execute on function public.my_board_people() to authenticated;

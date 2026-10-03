@@ -11,8 +11,12 @@ import {
   CircleCheckBig,
   Copy,
   FolderInput,
-  Trash2
+  Trash2,
+  UserRound
 } from 'lucide-react'
+import { useSyncStore } from '@/stores/sync-store'
+import { peopleOf, personOf } from '@/features/sharing/people'
+import { PersonAvatar } from '@/features/sharing/person-badge'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
@@ -34,7 +38,11 @@ const WIDTH = 224
  * then one board's columns — instead of opening flyouts that would have to
  * dodge the screen edge on their own.
  */
-type View = { step: 'root' } | { step: 'boards' } | { step: 'columns'; boardId: string }
+type View =
+  | { step: 'root' }
+  | { step: 'boards' }
+  | { step: 'columns'; boardId: string }
+  | { step: 'assignee' }
 
 /**
  * Right-click menu for a card on the board.
@@ -66,6 +74,10 @@ export function CardContextMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const card = cards.find((c) => c.id === target.cardId)
+  const me = useSyncStore((s) => s.status.userId)
+  // Only a shared board has anyone to hand a card to.
+  const people = peopleOf(board, me)
+  const assignee = personOf(board, card?.assigneeId, me)
   const mayCreate = canOnBoard(board, 'createCards')
   const mayDelete = canOnBoard(board, 'deleteCards')
   // A card can only go where this PC may create cards.
@@ -211,6 +223,25 @@ export function CardContextMenu({
             </Item>
           )}
 
+          {people.length > 0 && (
+            <>
+              <div className="my-1 h-px bg-border" />
+              <Item
+                icon={
+                  assignee ? (
+                    <PersonAvatar person={assignee} />
+                  ) : (
+                    <UserRound className="h-3.5 w-3.5" />
+                  )
+                }
+                trailing={<ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                onClick={() => setView({ step: 'assignee' })}
+              >
+                {assignee ? `Responsável: ${assignee.label}` : 'Definir responsável'}
+              </Item>
+            </>
+          )}
+
           <div className="my-1 h-px bg-border" />
 
           <Item icon={<Check className="h-3.5 w-3.5" />} onClick={() => patch({ done: !finished })}>
@@ -260,6 +291,37 @@ export function CardContextMenu({
               Entrega em {dayLabel(card.dueDate)}
               {card.dueTime ? ` às ${card.dueTime}` : ''}
             </p>
+          )}
+        </>
+      )}
+
+      {view.step === 'assignee' && (
+        <>
+          <BackHeader onBack={() => setView({ step: 'root' })}>Responsável</BackHeader>
+          {people.map((person) => (
+            <Item
+              key={person.userId}
+              icon={<PersonAvatar person={person} />}
+              trailing={
+                card.assigneeId === person.userId ? (
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                ) : undefined
+              }
+              onClick={() => patch({ assigneeId: person.userId })}
+            >
+              {person.label}
+            </Item>
+          ))}
+          {card.assigneeId && (
+            <>
+              <div className="my-1 h-px bg-border" />
+              <Item
+                icon={<UserRound className="h-3.5 w-3.5" />}
+                onClick={() => patch({ assigneeId: undefined })}
+              >
+                Ninguém
+              </Item>
+            </>
           )}
         </>
       )}

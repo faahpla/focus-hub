@@ -54,6 +54,9 @@ import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
 import { dayLabel } from '@/lib/dates'
+import { useSyncStore } from '@/stores/sync-store'
+import { personOf, type Person } from '@/features/sharing/people'
+import { PersonChip } from '@/features/sharing/person-badge'
 
 type Lanes = Record<string, string[]>
 
@@ -92,6 +95,10 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
   // On a shared board a member only gets the controls their role allows.
   const mayManageColumns = canOnBoard(board, 'manageColumns')
   const mayCreateCards = canOnBoard(board, 'createCards')
+  // Who a card belongs to, said from this account's side ("você" or a name).
+  const me = useSyncStore((s) => s.status.userId)
+  const assigneeOf = (card: BoardCard): Person | undefined =>
+    personOf(board, card.assigneeId, me)
 
   const cards = useMemo(
     () => allCards.filter((c) => c.boardId === board.id),
@@ -304,6 +311,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               onToggleCardDone={toggleCardDone}
               onCardContextMenu={setContextTarget}
               columns={columns}
+              assigneeOf={assigneeOf}
             />
           ))}
 
@@ -324,6 +332,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
                 card={activeCard}
                 done={isCardDone(activeCard, columns)}
                 cancelled={isCardCancelled(activeCard, columns)}
+                assignee={assigneeOf(activeCard)}
                 dragging
               />
             </div>
@@ -369,7 +378,8 @@ function Column({
   onOpenCard,
   onToggleCardDone,
   onCardContextMenu,
-  columns
+  columns,
+  assigneeOf
 }: {
   column: BoardColumn
   cardIds: string[]
@@ -389,6 +399,7 @@ function Column({
   onToggleCardDone: (id: string) => void
   onCardContextMenu: (target: ContextTarget) => void
   columns: BoardColumn[]
+  assigneeOf: (card: BoardCard) => Person | undefined
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const [renaming, setRenaming] = useState(false)
@@ -542,6 +553,7 @@ function Column({
                   card={card}
                   done={isCardDone(card, columns)}
                   cancelled={isCardCancelled(card, columns)}
+                  assignee={assigneeOf(card)}
                   onOpen={() => onOpenCard(id)}
                   onToggleDone={() => onToggleCardDone(id)}
                   onContextMenu={(e) => {
@@ -618,6 +630,7 @@ function SortableCard({
   card,
   done,
   cancelled,
+  assignee,
   onOpen,
   onToggleDone,
   onContextMenu
@@ -625,6 +638,7 @@ function SortableCard({
   card: BoardCard
   done: boolean
   cancelled: boolean
+  assignee?: Person
   onOpen: () => void
   onToggleDone: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -642,7 +656,13 @@ function SortableCard({
       onContextMenu={onContextMenu}
       className={cn('no-drag touch-none', isDragging && 'opacity-30')}
     >
-      <CardBody card={card} done={done} cancelled={cancelled} onToggleDone={onToggleDone} />
+      <CardBody
+        card={card}
+        done={done}
+        cancelled={cancelled}
+        assignee={assignee}
+        onToggleDone={onToggleDone}
+      />
     </div>
   )
 }
@@ -652,12 +672,15 @@ function CardBody({
   card,
   done,
   cancelled,
+  assignee,
   dragging,
   onToggleDone
 }: {
   card: BoardCard
   done?: boolean
   cancelled?: boolean
+  /** Whose card it is, on a shared board. Absent when nobody is assigned. */
+  assignee?: Person
   dragging?: boolean
   onToggleDone?: () => void
 }): JSX.Element {
@@ -685,6 +708,18 @@ function CardBody({
         dragging && 'border-primary/50 bg-surface-elevated shadow-elevated'
       )}
     >
+      {/*
+        Whose card it is, readable from across the board: a bar in the
+        person's colour down the left edge. Its own element rather than an
+        inset shadow, which the dragging state's shadow would replace.
+      */}
+      {assignee && (
+        <span
+          aria-hidden
+          className="absolute inset-y-2 left-0 w-1 rounded-r-full"
+          style={{ backgroundColor: `hsl(${assignee.color})` }}
+        />
+      )}
       <div className="flex items-start gap-2">
         {dropped ? (
           <span
@@ -737,8 +772,9 @@ function CardBody({
         </p>
       )}
 
-      {(steps.length > 0 || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
+      {(assignee || steps.length > 0 || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {assignee && <PersonChip person={assignee} />}
           {assetCount > 0 && (
             <span className="flex items-center gap-1 rounded-md bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted-foreground">
               <Paperclip className="h-3 w-3" />

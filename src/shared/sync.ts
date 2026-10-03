@@ -25,11 +25,23 @@ export const FULL_PERMISSIONS: SharePermissions = {
   manageColumns: true
 }
 
+/** Someone on a shared board — whom a card can be assigned to. */
+export interface SharePerson {
+  userId: string
+  email: string
+  isOwner: boolean
+}
+
 /** How a board on this PC relates to the cloud. Absent on unshared boards. */
 export interface BoardShare {
   /** The owner can do everything; a member only what `can` allows. */
   role: 'owner' | 'member'
   can: SharePermissions
+  /**
+   * Owner and members, refreshed on every pull. Kept here, on the board,
+   * so drawing who a card belongs to never waits on the network.
+   */
+  people?: SharePerson[]
 }
 
 export type SyncState =
@@ -44,6 +56,8 @@ export type SyncState =
 export interface SyncStatus {
   state: SyncState
   email?: string
+  /** The signed-in account — what makes a card read "você" rather than an e-mail. */
+  userId?: string
   /** Changes made here that have not reached the cloud yet. */
   pending: number
   /** The last thing worth telling the user, already in Portuguese. */

@@ -257,6 +257,11 @@ export interface BoardCard {
   /** Marked finished — either by hand or by landing in a "done" column. */
   done?: boolean
   /**
+   * Who is on the hook for this card — a person on the shared board, by
+   * account id. Set by hand and never inferred from the column.
+   */
+  assigneeId?: string
+  /**
    * @deprecated A card is a deliverable and needs many tasks, not one. Tasks
    * now point at their card through `Task.cardId`; this is kept so older
    * documents migrate cleanly and is no longer written to.

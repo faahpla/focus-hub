@@ -23,6 +23,7 @@ import {
   type BoardMember,
   type BoardShare,
   type SharePermissions,
+  type SharePerson,
   type ShareRole,
   type SyncResult,
   type SyncState,
@@ -62,10 +63,18 @@ interface ApiError {
   code?: string
 }
 
+interface PersonRow {
+  board_id: string
+  user_id: string
+  email: string
+  is_owner: boolean
+}
+
 interface Snapshot {
   boards: BoardRow[]
   members: MemberRow[]
   cards: CardRow[]
+  people: PersonRow[]
 }
 
 const PAGE = 1000
@@ -249,6 +258,7 @@ export class SyncService {
   private retryDelay = RETRY_MIN
   private retryTimer: NodeJS.Timeout | null = null
   private cleanupTimer: NodeJS.Timeout | null = null
+  private peopleTimer: NodeJS.Timeout | null = null
   private channelDown = false
   /**
    * Bumped whenever shared data changes here by any route other than the
@@ -303,6 +313,7 @@ export class SyncService {
     return {
       state: this.state,
       email: this.email ?? undefined,
+      userId: this.userId ?? undefined,
       pending: this.outbox.size,
       error: this.lastError,
       errorId: this.errorId
@@ -378,7 +389,12 @@ export class SyncService {
     this.applyRemote((d) => {
       const local = d.boards.find((b) => b.id === boardId)
       if (!local) return false
-      local.shared = { role: 'owner', can: { ...FULL_PERMISSIONS } }
+      // Seed the owner in, so cards can be assigned before the next pull.
+      local.shared = {
+        role: 'owner',
+        can: { ...FULL_PERMISSIONS },
+        people: [{ userId: this.userId!, email: this.email ?? '', isOwner: true }]
+      }
       // Anything edited on this board while the upload ran was not part of it.
       for (const card of d.cards.filter((c) => c.boardId === boardId)) {
         const sent = byId.get(card.id)
@@ -934,11 +950,26 @@ export class SyncService {
       cards.push(...(page.data as CardRow[]))
       if (page.data.length < PAGE) break
     }
-    return { boards: boards.data as BoardRow[], members: members.data as MemberRow[], cards }
+
+    // Who is on each board. Names are a nicety: if this read fails the sync
+    // carries on, and cards just show no one for now.
+    const people = await sb.rpc('my_board_people')
+    return {
+      boards: boards.data as BoardRow[],
+      members: members.data as MemberRow[],
+      cards,
+      people: people.error ? [] : (people.data as PersonRow[])
+    }
   }
 
-  private applySnapshot({ boards, members, cards }: Snapshot): void {
+  private applySnapshot({ boards, members, cards, people }: Snapshot): void {
     const permissions = new Map(members.map((m) => [m.board_id, m]))
+    const peopleOf = new Map<string, SharePerson[]>()
+    for (const p of people) {
+      const list = peopleOf.get(p.board_id) ?? []
+      list.push({ userId: p.user_id, email: p.email, isOwner: p.is_owner })
+      peopleOf.set(p.board_id, list)
+    }
     const pending = this.outbox.pendingCards()
     // A board this PC is deleting or leaving stays gone, whatever the cloud says.
     const live = boards.filter((b) => !this.outbox.isBoardGoing(b.id))
@@ -947,10 +978,15 @@ export class SyncService {
     this.applyRemote((data) => {
       for (const row of live) {
         const member = permissions.get(row.id)
-        const shared: BoardShare =
-          row.owner_id === this.userId
-            ? { role: 'owner', can: { ...FULL_PERMISSIONS } }
-            : { role: 'member', can: member ? permissionsOf(member) : { ...NO_PERMISSIONS } }
+        const shared: BoardShare = {
+          ...(row.owner_id === this.userId
+            ? { role: 'owner' as const, can: { ...FULL_PERMISSIONS } }
+            : {
+                role: 'member' as const,
+                can: member ? permissionsOf(member) : { ...NO_PERMISSIONS }
+              }),
+          people: peopleOf.get(row.id) ?? []
+        }
         const local = data.boards.find((b) => b.id === row.id)
         if (local) {
           if (!this.outbox.hasBoardEdit(row.id)) Object.assign(local, cloudBoardFields(row))
@@ -1052,7 +1088,9 @@ export class SyncService {
     if (!this.userId) return
     if (p.eventType === 'DELETE') {
       const old = p.old as Partial<MemberRow>
-      if (old.user_id !== this.userId || !old.board_id) return
+      if (!old.board_id) return
+      // Someone else left or was removed: the list of people changed.
+      if (old.user_id !== this.userId) return this.refreshPeopleSoon()
       const boardId = old.board_id
       this.applyRemote((data) => {
         const board = data.boards.find((b) => b.id === boardId)
@@ -1063,7 +1101,8 @@ export class SyncService {
       return
     }
     const row = p.new as unknown as MemberRow
-    if (row.user_id !== this.userId) return
+    // Someone else joined, or had their access changed.
+    if (row.user_id !== this.userId) return this.refreshPeopleSoon()
     if (!this.repo.getAll().boards.some((b) => b.id === row.board_id)) {
       void this.pull()
       return
@@ -1071,8 +1110,21 @@ export class SyncService {
     this.applyRemote((data) => {
       const board = data.boards.find((b) => b.id === row.board_id)
       if (!board) return false
-      board.shared = { role: 'member', can: permissionsOf(row) }
+      // Spread first: replacing `shared` outright would drop the board's people.
+      board.shared = { ...board.shared, role: 'member', can: permissionsOf(row) }
     })
+  }
+
+  /**
+   * Re-read who is on each board, shortly. Membership events come in bursts —
+   * a join is an insert and an invite delete — so wait for them to settle.
+   */
+  private refreshPeopleSoon(): void {
+    if (this.peopleTimer) clearTimeout(this.peopleTimer)
+    this.peopleTimer = setTimeout(() => {
+      this.peopleTimer = null
+      void this.pull()
+    }, 1500)
   }
 
   // ---- Plumbing ------------------------------------------------------------------

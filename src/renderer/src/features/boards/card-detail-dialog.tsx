@@ -16,6 +16,7 @@ import {
   Star,
   Trash2,
   Type,
+  UserRound,
   X
 } from 'lucide-react'
 import {
@@ -39,6 +40,9 @@ import { TimeField } from '@/components/ui/time-field'
 import { addDaysToKey, dayLabel, today } from '@/lib/dates'
 import { ChecklistPanel } from '@/features/session/checklist-panel'
 import { useAppStore } from '@/stores/app-store'
+import { useSyncStore } from '@/stores/sync-store'
+import { peopleOf, personOf } from '@/features/sharing/people'
+import { PersonAvatar, PersonChip } from '@/features/sharing/person-badge'
 import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
@@ -117,6 +121,9 @@ function CardEditor({
   const checklist = card.checklist ?? []
   const column = board.columns.find((c) => c.id === card.columnId)
   const finished = isCardDone(card, board.columns)
+  const me = useSyncStore((s) => s.status.userId)
+  const people = peopleOf(board, me)
+  const assignee = personOf(board, card.assigneeId, me)
   const dropped = isCardCancelled(card, board.columns)
 
   /** Take this card into a focus session — the card *is* the work. */
@@ -325,6 +332,51 @@ function CardEditor({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Whose card it is — only a shared board has anyone to choose. */}
+              {people.length > 0 && (
+                <>
+                  <span className="text-border">·</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      {assignee ? (
+                        <button className="no-drag flex items-center rounded-lg transition-opacity hover:opacity-80">
+                          <PersonChip person={assignee} />
+                          <ChevronDown className="ml-0.5 h-3 w-3 opacity-60" />
+                        </button>
+                      ) : (
+                        <button className="no-drag flex items-center gap-1.5 rounded-lg bg-surface-elevated px-2 py-1 text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground">
+                          <UserRound className="h-3.5 w-3.5" />
+                          Sem responsável
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>Responsável</DropdownMenuLabel>
+                      {people.map((person) => (
+                        <DropdownMenuItem
+                          key={person.userId}
+                          active={card.assigneeId === person.userId}
+                          onSelect={() => patch({ assigneeId: person.userId })}
+                        >
+                          <span className="flex items-center gap-2">
+                            <PersonAvatar person={person} />
+                            {person.label}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                      {card.assigneeId && (
+                        <DropdownMenuItem onSelect={() => patch({ assigneeId: undefined })}>
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <UserRound className="h-4 w-4" /> Ninguém
+                          </span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
             </div>
           </div>
 
