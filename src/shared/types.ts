@@ -187,6 +187,26 @@ export interface CardAsset {
   kind?: 'link' | 'path' | 'text'
 }
 
+/**
+ * A file attached to a card.
+ *
+ * On a shared board the file itself goes to the cloud (`storagePath`) so the
+ * other person can download it, and it is deleted `expiresAt` — two days on —
+ * to keep the free storage from filling. On a board only on this PC it stays
+ * where it is and only its path is kept (`localPath`), with no expiry.
+ */
+export interface CardAttachment {
+  id: ID
+  /** The original file name, shown and used when downloading. */
+  name: string
+  /** Bytes. */
+  size: number
+  storagePath?: string
+  localPath?: string
+  uploadedAt: string // ISO
+  expiresAt?: string // ISO, cloud files only
+}
+
 /** A card on a board. Lightweight by default; may be linked to a real Task. */
 export interface BoardCard {
   id: ID
@@ -225,7 +245,14 @@ export interface BoardCard {
    * the task; its steps are just things to tick off while focusing on it.
    */
   checklist?: ChecklistItem[]
+  /** Free-text lines: hook variants, title ideas. Kept apart from files. */
   assets: CardAsset[]
+  /**
+   * Files — audio, thumbnail, notes — as opposed to the text lines above.
+   * Separate because the Assets box rewrites `assets` from its text: a file
+   * kept in there would be dropped by the next keystroke.
+   */
+  attachments?: CardAttachment[]
   tags: string[]
   /** Marked finished — either by hand or by landing in a "done" column. */
   done?: boolean

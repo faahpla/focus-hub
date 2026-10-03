@@ -423,3 +423,37 @@ begin
   end loop;
 end
 $$;
+
+
+-- -----------------------------------------------------------------------------
+-- Attachments: files on cards of shared boards.
+--
+-- Stored flat under the board's id — attachments/<board id>/<file> — so the
+-- first folder of a path says which board it belongs to, and the rules below
+-- reuse board_can for it. Private bucket: nothing is reachable by URL alone.
+--
+-- Files live two days. The app deletes expired ones itself (any copy that is
+-- open and signed in does it), which keeps the free plan's 1 GB from filling.
+-- 10 MB per file is a guard well above the MP3 + thumbnail + text a card
+-- carries, and well under the free plan's 50 MB ceiling.
+-- -----------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('attachments', 'attachments', false, 10485760)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+drop policy if exists attachments_select on storage.objects;
+create policy attachments_select on storage.objects
+  for select to authenticated
+  using (bucket_id = 'attachments' and public.board_can((storage.foldername(name))[1], 'read'));
+
+-- Attaching or removing a file is editing the card, which every member may do.
+drop policy if exists attachments_insert on storage.objects;
+create policy attachments_insert on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'attachments' and public.board_can((storage.foldername(name))[1], 'edit'));
+
+drop policy if exists attachments_delete on storage.objects;
+create policy attachments_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'attachments' and public.board_can((storage.foldername(name))[1], 'edit'));

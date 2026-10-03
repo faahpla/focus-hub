@@ -102,7 +102,13 @@ const api: FocusHubApi = {
   listMembers: (boardId) => ipcRenderer.invoke(IPC.SYNC_LIST_MEMBERS, boardId),
   updateMember: (boardId, userId, role, can) =>
     ipcRenderer.invoke(IPC.SYNC_UPDATE_MEMBER, boardId, userId, role, can),
-  removeMember: (boardId, userId) => ipcRenderer.invoke(IPC.SYNC_REMOVE_MEMBER, boardId, userId)
+  removeMember: (boardId, userId) => ipcRenderer.invoke(IPC.SYNC_REMOVE_MEMBER, boardId, userId),
+
+  attachFiles: (cardId) => ipcRenderer.invoke(IPC.ATTACH_FILES, cardId),
+  downloadAttachments: (cardId, attachmentId) =>
+    ipcRenderer.invoke(IPC.DOWNLOAD_ATTACHMENTS, cardId, attachmentId),
+  removeAttachment: (cardId, attachmentId) =>
+    ipcRenderer.invoke(IPC.REMOVE_ATTACHMENT, cardId, attachmentId)
 }
 
 function subscribe(channel: string, listener: (...args: unknown[]) => void): () => void {

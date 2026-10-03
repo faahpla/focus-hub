@@ -43,6 +43,7 @@ import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
+import { CardAttachments } from './card-attachments'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
 
@@ -473,6 +474,8 @@ function CardEditor({
                   placeholder="Uma por linha: gancho, titulo, referencia..."
                   className="no-drag min-h-[180px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
+                {/* Files — audio, thumbnail, notes — live apart from the text above. */}
+                <CardAttachments card={card} board={board} />
               </div>
 
               {/* Publish title — separate from the card's own name, which is

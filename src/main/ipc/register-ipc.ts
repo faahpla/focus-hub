@@ -1,11 +1,13 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { IPC } from '../../shared/ipc'
 import type {
   AppData,
   Board,
   BoardCard,
+  CardAttachment,
   FlowConfig,
   Idea,
   Project,
@@ -23,7 +25,13 @@ import type {
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import type { SharePermissions, ShareRole } from '../../shared/sync'
 import type { Repository } from '../store/repository'
-import type { SyncService } from '../services/sync-service'
+import type { LocalFile, SyncService } from '../services/sync-service'
+import {
+  MAX_ATTACHMENT_BYTES,
+  fileNameOf,
+  folderNameOf,
+  sizeLabel
+} from '../services/attachment-files'
 import type { BackupService } from '../services/backup-service'
 import { parseBackupDocument } from '../services/backup-service'
 import type { FlowService } from '../services/flow-service'
@@ -186,6 +194,107 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
   ipcMain.handle(IPC.SYNC_REMOVE_MEMBER, (_e, boardId: string, userId: string) =>
     sync.removeMember(boardId, userId)
   )
+
+  // ---- Attachments ----
+  /*
+    The file dialog opens here, not in the screen: the screen never hands over
+    a path to upload, so it cannot be made to send an arbitrary file.
+  */
+  ipcMain.handle(IPC.ATTACH_FILES, async (_e, cardId: string) => {
+    const current = repo.getAll()
+    const card = current.cards.find((c) => c.id === cardId)
+    if (!card) return { ok: false, error: 'Card não encontrado.' }
+    const picked = await dialog.showOpenDialog({
+      title: 'Anexar ao card',
+      properties: ['openFile', 'multiSelections']
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return { ok: false }
+
+    const sizes = await Promise.all(picked.filePaths.map(async (p) => (await fs.stat(p)).size))
+    const board = current.boards.find((b) => b.id === card.boardId)
+    let added: CardAttachment[]
+    if (board?.shared) {
+      const files: LocalFile[] = []
+      for (const [i, path] of picked.filePaths.entries()) {
+        if (sizes[i] > MAX_ATTACHMENT_BYTES) {
+          return {
+            ok: false,
+            error: `“${basename(path)}” tem ${sizeLabel(sizes[i])}. O limite é 10 MB por arquivo.`
+          }
+        }
+        files.push({ name: basename(path), bytes: await fs.readFile(path) })
+      }
+      const res = await sync.uploadAttachments(board.id, files)
+      if (!res.ok || !res.attachments) return { ok: false, error: res.error }
+      added = res.attachments
+    } else {
+      // Only on this PC: keep where the file is, like before sharing existed.
+      const stamp = new Date().toISOString()
+      added = picked.filePaths.map((path, i) => ({
+        id: randomUUID(),
+        name: basename(path),
+        size: sizes[i],
+        localPath: path,
+        uploadedAt: stamp
+      }))
+    }
+
+    // Read the card again: an upload takes a moment and the card may have
+    // been edited, or deleted, in the meantime.
+    const fresh = repo.getAll().cards.find((c) => c.id === cardId)
+    if (!fresh) {
+      void sync.removeStoredFiles(added.flatMap((a) => (a.storagePath ? [a.storagePath] : [])))
+      return { ok: false, error: 'O card foi apagado enquanto os arquivos subiam.' }
+    }
+    saveCards([{ ...fresh, attachments: [...(fresh.attachments ?? []), ...added] }])
+    return { ok: true, count: added.length }
+  })
+
+  /*
+    Downloads land in Downloads/Focus HUB/<card title>/ and that folder opens,
+    so the files are one drag away from the video editor. A file kept only as
+    a path on this PC just opens where it is.
+  */
+  ipcMain.handle(IPC.DOWNLOAD_ATTACHMENTS, async (_e, cardId: string, attachmentId?: string) => {
+    const card = repo.getAll().cards.find((c) => c.id === cardId)
+    if (!card) return { ok: false, error: 'Card não encontrado.' }
+    const wanted = (card.attachments ?? []).filter((a) => !attachmentId || a.id === attachmentId)
+    if (wanted.length === 0) return { ok: false, error: 'Nada para baixar.' }
+
+    if (attachmentId && wanted[0].localPath) {
+      const err = await shell.openPath(wanted[0].localPath)
+      return err
+        ? { ok: false, error: 'Não deu para abrir: o arquivo pode ter sido movido ou apagado.' }
+        : { ok: true }
+    }
+
+    const folder = join(app.getPath('downloads'), 'Focus HUB', folderNameOf(card.title))
+    await fs.mkdir(folder, { recursive: true })
+    for (const a of wanted) {
+      const target = join(folder, fileNameOf(a.name))
+      if (a.storagePath) {
+        const res = await sync.downloadAttachment(a.storagePath)
+        if (!res.ok || !res.bytes) return { ok: false, error: res.error }
+        await fs.writeFile(target, res.bytes)
+      } else if (a.localPath) {
+        await fs.copyFile(a.localPath, target).catch(() => undefined)
+      }
+    }
+    await shell.openPath(folder)
+    return { ok: true, folder }
+  })
+
+  ipcMain.handle(IPC.REMOVE_ATTACHMENT, async (_e, cardId: string, attachmentId: string) => {
+    const card = repo.getAll().cards.find((c) => c.id === cardId)
+    const target = card?.attachments?.find((a) => a.id === attachmentId)
+    if (!card || !target) return { ok: false }
+    saveCards([
+      { ...card, attachments: (card.attachments ?? []).filter((a) => a.id !== attachmentId) }
+    ])
+    // The card no longer points at it; whatever fails here, the sweep catches.
+    if (target.storagePath) void sync.removeStoredFiles([target.storagePath])
+    return { ok: true }
+  })
   ipcMain.handle(IPC.SESSIONS_RECORD, (_e, s: Session) => changed(repo.recordSession(s)))
   ipcMain.handle(IPC.STATS_SAVE, (_e, s: Stats) => changed(repo.saveStats(s)))
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, s: Settings) => changed(repo.saveSettings(s)))

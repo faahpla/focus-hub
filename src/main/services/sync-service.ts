@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
@@ -9,7 +10,13 @@ import {
   type SupabaseClientOptions
 } from '@supabase/supabase-js'
 import WebSocket from 'ws'
-import type { AppData, Board, BoardCard } from '../../shared/types'
+import type { AppData, Board, BoardCard, CardAttachment } from '../../shared/types'
+import {
+  ATTACHMENT_BUCKET,
+  ATTACHMENT_TTL_MS,
+  contentTypeOf,
+  storageKeyOf
+} from './attachment-files'
 import {
   FULL_PERMISSIONS,
   type BoardInvite,
@@ -91,6 +98,35 @@ function describe(error: ApiError): string {
   if (m.includes('entre na sua conta')) return 'Entre na sua conta antes de usar um código.'
   if (error.code === '42501') return 'Seu acesso a esse quadro não permite essa mudança.'
   return error.message
+}
+
+/**
+ * Storage errors carry an HTTP status instead of a database code; one with no
+ * status never got an answer, which is what "offline" looks like from here.
+ */
+interface StorageFailure {
+  message: string
+  status?: number
+}
+
+function storageToApi(error: StorageFailure): ApiError {
+  if (error.status === undefined) return { message: error.message }
+  const m = error.message.toLowerCase()
+  let message = error.message
+  if (error.status === 413 || m.includes('maximum allowed size') || m.includes('too large')) {
+    message = 'Arquivo grande demais: o limite é 10 MB por arquivo.'
+  } else if (error.status === 401 || error.status === 403 || m.includes('row-level security')) {
+    message = 'Seu acesso a esse quadro não permite anexar ou apagar arquivos.'
+  } else if (error.status === 404 || m.includes('not found')) {
+    message = 'Esse arquivo não está mais na nuvem — anexos somem 2 dias depois de enviados.'
+  }
+  return { message, code: String(error.status) }
+}
+
+/** Files read from this PC, ready to go up. */
+export interface LocalFile {
+  name: string
+  bytes: Buffer
 }
 
 function describeAuth(error: { message: string; code?: string }): string {
@@ -212,6 +248,7 @@ export class SyncService {
   private pullAgain = false
   private retryDelay = RETRY_MIN
   private retryTimer: NodeJS.Timeout | null = null
+  private cleanupTimer: NodeJS.Timeout | null = null
   private channelDown = false
   /**
    * Bumped whenever shared data changes here by any route other than the
@@ -362,6 +399,9 @@ export class SyncService {
     const sb = this.sb
     if (!sb) return UNCONFIGURED
     if (!this.userId) return SIGNED_OUT
+    // Files first: once the board row is gone, the bucket's rules no longer
+    // let anyone reach them, and they would sit there for good.
+    await this.removeBoardFiles(boardId)
     const gone = await sb.from('boards').delete().eq('id', boardId)
     if (gone.error) return this.refuse(gone.error)
     this.applyRemote((d) => {
@@ -491,6 +531,132 @@ export class SyncService {
     return error ? this.refuse(error) : { ok: true }
   }
 
+  // ---- Attachments ---------------------------------------------------------------
+
+  /**
+   * Send files up for a card on a shared board. All or nothing: if one fails,
+   * the ones already up are taken back down — half an upload is clutter.
+   */
+  async uploadAttachments(
+    boardId: string,
+    files: LocalFile[]
+  ): Promise<SyncResult & { attachments?: CardAttachment[] }> {
+    const sb = this.sb
+    if (!sb) return UNCONFIGURED
+    if (!this.userId) return SIGNED_OUT
+    const done: CardAttachment[] = []
+    for (const file of files) {
+      const id = randomUUID()
+      const key = storageKeyOf(boardId, id, file.name)
+      const { error } = await sb.storage
+        .from(ATTACHMENT_BUCKET)
+        .upload(key, file.bytes, { contentType: contentTypeOf(file.name), upsert: false })
+      if (error) {
+        if (done.length) {
+          await sb.storage.from(ATTACHMENT_BUCKET).remove(done.map((a) => a.storagePath!))
+        }
+        return this.refuse(storageToApi(error as StorageFailure))
+      }
+      const now = Date.now()
+      done.push({
+        id,
+        name: file.name,
+        size: file.bytes.length,
+        storagePath: key,
+        uploadedAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + ATTACHMENT_TTL_MS).toISOString()
+      })
+    }
+    return { ok: true, attachments: done }
+  }
+
+  async downloadAttachment(storagePath: string): Promise<SyncResult & { bytes?: Buffer }> {
+    const sb = this.sb
+    if (!sb) return UNCONFIGURED
+    if (!this.userId) return SIGNED_OUT
+    const { data, error } = await sb.storage.from(ATTACHMENT_BUCKET).download(storagePath)
+    if (error || !data) return this.refuse(storageToApi((error ?? { message: 'vazio' }) as StorageFailure))
+    return { ok: true, bytes: Buffer.from(await data.arrayBuffer()) }
+  }
+
+  /** Best effort: a file that fails to go now is caught by the two-day sweep. */
+  async removeStoredFiles(paths: string[]): Promise<void> {
+    if (!this.sb || !this.userId || paths.length === 0) return
+    await this.sb.storage.from(ATTACHMENT_BUCKET).remove(paths)
+  }
+
+  /**
+   * Delete what is past its two days, on every shared board this user can
+   * edit. Two passes, because they catch different leftovers: the cards'
+   * own lists lose their expired entries, and the board's folder is swept
+   * by file age — which also clears files whose card was deleted or moved,
+   * and that no list points at any more.
+   */
+  private async sweepExpired(): Promise<void> {
+    if (!this.sb || !this.userId) return
+    const now = Date.now()
+    const data = this.repo.getAll()
+
+    for (const card of data.cards) {
+      if (!sharedBoard(data, card.boardId)) continue
+      const expired = (card.attachments ?? []).filter(
+        (a) => a.expiresAt && Date.parse(a.expiresAt) <= now
+      )
+      if (expired.length === 0) continue
+      const gone = new Set(expired.map((a) => a.id))
+      this.rewriteCard(card.id, (c) => ({
+        ...c,
+        attachments: (c.attachments ?? []).filter((a) => !gone.has(a.id))
+      }))
+    }
+
+    for (const board of data.boards) {
+      if (!board.shared) continue
+      const { data: files, error } = await this.sb.storage
+        .from(ATTACHMENT_BUCKET)
+        .list(board.id, { limit: 1000 })
+      if (error || !files) continue
+      const stale = files
+        .filter((f) => f.created_at && now - Date.parse(f.created_at) > ATTACHMENT_TTL_MS)
+        .map((f) => `${board.id}/${f.name}`)
+      if (stale.length) await this.sb.storage.from(ATTACHMENT_BUCKET).remove(stale)
+    }
+  }
+
+  /** Everything a board keeps in the bucket, before the board itself goes. */
+  private async removeBoardFiles(boardId: string): Promise<void> {
+    if (!this.sb) return
+    const { data: files } = await this.sb.storage
+      .from(ATTACHMENT_BUCKET)
+      .list(boardId, { limit: 1000 })
+    if (files?.length) {
+      await this.sb.storage.from(ATTACHMENT_BUCKET).remove(files.map((f) => `${boardId}/${f.name}`))
+    }
+  }
+
+  /**
+   * Change one card from here — not from the screen — and queue the change
+   * like any other edit. The holder object is there because TypeScript does
+   * not follow assignments made inside the callback.
+   */
+  private rewriteCard(cardId: string, change: (card: BoardCard) => BoardCard): void {
+    const box: { before?: BoardCard; after?: BoardCard } = {}
+    const data = this.repo.apply((d) => {
+      const i = d.cards.findIndex((c) => c.id === cardId)
+      if (i < 0) return false
+      box.before = structuredClone(d.cards[i])
+      box.after = { ...change(d.cards[i]), updatedAt: new Date().toISOString() }
+      d.cards[i] = box.after
+    })
+    if (!data || !box.before || !box.after) return
+    const patch = diffCard(box.before, box.after)
+    if (patch && sharedBoard(data, box.after.boardId)) {
+      this.outbox.push({ kind: 'card-patch', id: cardId, patch })
+    }
+    this.onData(data)
+    this.kick()
+  }
+
   // ---- Changes made on this PC -----------------------------------------------
   //
   // The check* methods run before a write is applied; a reason back means the
@@ -601,6 +767,10 @@ export class SyncService {
     // read back, or the read would briefly undo them.
     await this.flush()
     await this.pull()
+    // Expired attachments go now and then every hour while signed in.
+    void this.sweepExpired()
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer)
+    this.cleanupTimer = setInterval(() => void this.sweepExpired(), 60 * 60 * 1000)
   }
 
   private disconnect(): void {
@@ -610,6 +780,8 @@ export class SyncService {
     this.email = null
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer)
+    this.cleanupTimer = null
     this.channelDown = false
     this.state = this.sb ? 'signed-out' : 'unconfigured'
     this.emit()
@@ -702,6 +874,8 @@ export class SyncService {
       case 'board-columns':
         return (await sb.rpc('set_board_columns', { b: op.id, cols: op.columns })).error
       case 'board-delete':
+        // Same order as unshareBoard: files can only be reached while the board exists.
+        await this.removeBoardFiles(op.id)
         return (await sb.from('boards').delete().eq('id', op.id)).error
       case 'board-leave':
         return (

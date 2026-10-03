@@ -663,7 +663,8 @@ function CardBody({
 }): JSX.Element {
   const steps = card.checklist ?? []
   const doneSteps = steps.filter((c) => c.done).length
-  const assetCount = card.assets?.length ?? 0
+  // Text lines and files alike: the clip says "something is attached here".
+  const assetCount = (card.assets?.length ?? 0) + (card.attachments?.length ?? 0)
   // A card is finished by its column or by hand — never by its tasks, since a
   // deliverable can have every step done and still be waiting to publish.
   const finished = done ?? false

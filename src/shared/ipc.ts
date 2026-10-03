@@ -108,6 +108,9 @@ export const IPC = {
   SYNC_LIST_MEMBERS: 'sync:listMembers',
   SYNC_UPDATE_MEMBER: 'sync:updateMember',
   SYNC_REMOVE_MEMBER: 'sync:removeMember',
+  ATTACH_FILES: 'attachments:attach',
+  DOWNLOAD_ATTACHMENTS: 'attachments:download',
+  REMOVE_ATTACHMENT: 'attachments:remove',
 
   // Quick capture (main -> renderer + renderer -> main)
   QUICK_CAPTURE_SAVE: 'quickCapture:save',
@@ -228,4 +231,16 @@ export interface FocusHubApi {
     can: SharePermissions
   ): Promise<SyncResult>
   removeMember(boardId: string, userId: string): Promise<SyncResult>
+
+  /**
+   * Pick files and attach them to a card. On a shared board they go up to the
+   * cloud for two days; otherwise only their path on this PC is kept.
+   */
+  attachFiles(cardId: string): Promise<SyncResult & { count?: number }>
+  /** Save one attachment, or all of a card's, to Downloads/Focus HUB and open the folder. */
+  downloadAttachments(
+    cardId: string,
+    attachmentId?: string
+  ): Promise<SyncResult & { folder?: string }>
+  removeAttachment(cardId: string, attachmentId: string): Promise<SyncResult>
 }
