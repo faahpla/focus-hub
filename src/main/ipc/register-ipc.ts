@@ -197,25 +197,26 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
 
   // ---- Attachments ----
   /*
-    The file dialog opens here, not in the screen: the screen never hands over
-    a path to upload, so it cannot be made to send an arbitrary file.
+    Paths reach this point two ways, and neither is a string the screen made
+    up: the file dialog opens here in main, and a drop arrives as the File
+    objects of a real drag, turned into paths by the preload. A File built in
+    page script has no path, so the screen cannot be made to send an
+    arbitrary file from disk.
   */
-  ipcMain.handle(IPC.ATTACH_FILES, async (_e, cardId: string) => {
+  const attachPaths = async (
+    cardId: string,
+    paths: string[]
+  ): Promise<{ ok: boolean; error?: string; count?: number }> => {
     const current = repo.getAll()
     const card = current.cards.find((c) => c.id === cardId)
     if (!card) return { ok: false, error: 'Card não encontrado.' }
-    const picked = await dialog.showOpenDialog({
-      title: 'Anexar ao card',
-      properties: ['openFile', 'multiSelections']
-    })
-    if (picked.canceled || picked.filePaths.length === 0) return { ok: false }
 
-    const sizes = await Promise.all(picked.filePaths.map(async (p) => (await fs.stat(p)).size))
+    const sizes = await Promise.all(paths.map(async (p) => (await fs.stat(p)).size))
     const board = current.boards.find((b) => b.id === card.boardId)
     let added: CardAttachment[]
     if (board?.shared) {
       const files: LocalFile[] = []
-      for (const [i, path] of picked.filePaths.entries()) {
+      for (const [i, path] of paths.entries()) {
         if (sizes[i] > MAX_ATTACHMENT_BYTES) {
           return {
             ok: false,
@@ -230,7 +231,7 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     } else {
       // Only on this PC: keep where the file is, like before sharing existed.
       const stamp = new Date().toISOString()
-      added = picked.filePaths.map((path, i) => ({
+      added = paths.map((path, i) => ({
         id: randomUUID(),
         name: basename(path),
         size: sizes[i],
@@ -248,6 +249,34 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     }
     saveCards([{ ...fresh, attachments: [...(fresh.attachments ?? []), ...added] }])
     return { ok: true, count: added.length }
+  }
+
+  ipcMain.handle(IPC.ATTACH_FILES, async (_e, cardId: string) => {
+    const picked = await dialog.showOpenDialog({
+      title: 'Anexar ao card',
+      properties: ['openFile', 'multiSelections']
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return { ok: false }
+    return attachPaths(cardId, picked.filePaths)
+  })
+
+  ipcMain.handle(IPC.ATTACH_PATHS, async (_e, cardId: string, paths: string[]) => {
+    // A drop can carry folders, and a path the preload could not resolve
+    // comes through empty. Only real files go on.
+    const isFile = await Promise.all(
+      paths.map((p) =>
+        p
+          ? fs
+              .stat(p)
+              .then((s) => s.isFile())
+              .catch(() => false)
+          : Promise.resolve(false)
+      )
+    )
+    if (paths.length === 0 || isFile.some((ok) => !ok)) {
+      return { ok: false, error: 'Arraste arquivos — pastas não podem ser anexadas.' }
+    }
+    return attachPaths(cardId, paths)
   })
 
   /*

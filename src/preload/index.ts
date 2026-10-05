@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { FocusHubApi } from '../shared/ipc'
 import type {
@@ -105,6 +105,14 @@ const api: FocusHubApi = {
   removeMember: (boardId, userId) => ipcRenderer.invoke(IPC.SYNC_REMOVE_MEMBER, boardId, userId),
 
   attachFiles: (cardId) => ipcRenderer.invoke(IPC.ATTACH_FILES, cardId),
+  // Electron 32+ took File.path away; the path of a dropped file is only
+  // reachable here, through webUtils. A File made in page script has none.
+  attachDroppedFiles: (cardId, files) =>
+    ipcRenderer.invoke(
+      IPC.ATTACH_PATHS,
+      cardId,
+      files.map((f) => webUtils.getPathForFile(f))
+    ),
   downloadAttachments: (cardId, attachmentId) =>
     ipcRenderer.invoke(IPC.DOWNLOAD_ATTACHMENTS, cardId, attachmentId),
   removeAttachment: (cardId, attachmentId) =>

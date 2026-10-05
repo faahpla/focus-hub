@@ -14,7 +14,9 @@ import {
   Trash2,
   UserRound
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useSyncStore } from '@/stores/sync-store'
+import { useBoardsUiStore } from '@/stores/boards-ui-store'
 import { peopleOf, personOf } from '@/features/sharing/people'
 import { PersonAvatar } from '@/features/sharing/person-badge'
 import { DynamicIcon } from '@/components/dynamic-icon'
@@ -67,6 +69,8 @@ export function CardContextMenu({
   const saveCard = useAppStore((s) => s.saveCard)
   const deleteCard = useAppStore((s) => s.deleteCard)
   const pushToast = useToastStore((s) => s.push)
+  const selectBoard = useBoardsUiStore((s) => s.select)
+  const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>({ step: 'root' })
   // Deleting asks twice: with a shared board, one stray click takes the card
@@ -175,7 +179,14 @@ export function CardContextMenu({
     pushToast({
       title: `“${card.title}” foi para ${destination.name}`,
       lines: [`Entrou na coluna ${column.name}.`],
-      variant: 'success'
+      variant: 'success',
+      hint: `Clique para abrir ${destination.name}`,
+      // Long enough to read it and decide to follow the card there.
+      duration: 9000,
+      onClick: () => {
+        selectBoard(destination.id)
+        navigate('/boards')
+      }
     })
     onClose()
   }

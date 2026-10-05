@@ -8,12 +8,10 @@ import {
   Copy,
   FileText,
   ListChecks,
-  Plus,
   Maximize2,
   MessageSquare,
   Paperclip,
   Play,
-  Star,
   Trash2,
   Type,
   UserRound,
@@ -47,7 +45,8 @@ import { useSessionStore } from '@/stores/session-store'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
-import { CardAttachments } from './card-attachments'
+import { AssetsDropZone, CardAttachments } from './card-attachments'
+import { QuickPicks, byUse } from './quick-picks'
 import { ScriptReader } from './script-reader'
 import { cn, uid } from '@/lib/utils'
 
@@ -114,6 +113,8 @@ function CardEditor({
   const [tagDraft, setTagDraft] = useState('')
   const [readerOpen, setReaderOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editingTag, setEditingTag] = useState<string | null>(null)
+  const [tagEdit, setTagEdit] = useState('')
   const [pane, setPane] = useState<'Roteiro' | 'Resumo'>('Roteiro')
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
 
@@ -180,6 +181,22 @@ function CardEditor({
     assets.map((a) => a.value).join('\n'),
     (next) => patchWith((c) => ({ assets: linesToAssets(next, c.assets ?? []) }))
   )
+
+  /**
+   * Rename a tag on this card. Renaming it to one the card already has merges
+   * the two; emptied out, the edit is dropped — removing is the ✕'s job.
+   */
+  const commitTagEdit = (): void => {
+    const from = editingTag
+    const to = tagEdit.trim().replace(/^#+/, '')
+    setEditingTag(null)
+    if (!from || !to || to === from) return
+    patchWith((c) => ({
+      tags: c.tags.includes(to)
+        ? c.tags.filter((t) => t !== from)
+        : c.tags.map((t) => (t === from ? to : t))
+    }))
+  }
 
   const addTag = (): void => {
     const tag = tagDraft.trim()
@@ -508,7 +525,7 @@ function CardEditor({
                 wrapped around a notepad. It stays stored as CardAsset[]
                 because the board badge counts the entries.
               */}
-              <div>
+              <AssetsDropZone card={card} board={board}>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     <Paperclip className="h-3.5 w-3.5 text-muted-foreground" /> Assets
@@ -524,11 +541,32 @@ function CardEditor({
                   value={assetsText}
                   onChange={(e) => setAssetsText(e.target.value)}
                   placeholder="Uma por linha: gancho, titulo, referencia..."
-                  className="no-drag min-h-[180px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                  className="no-drag min-h-[110px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
                 {/* Files — audio, thumbnail, notes — live apart from the text above. */}
                 <CardAttachments card={card} board={board} />
+              </AssetsDropZone>
+
+              {/* Description */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
+                  </p>
+                  <CopyButton value={description} />
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() =>
+                    description !== (card.description ?? '') && patch({ description })
+                  }
+                  placeholder="A descrição que vai no post…"
+                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
               </div>
+
+
 
               {/* Publish title — separate from the card's own name, which is
                   written to find it on the board, not to go on the video. */}
@@ -555,27 +593,6 @@ function CardEditor({
                   </p>
                 )}
               </div>
-
-              {/* Description */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
-                  </p>
-                  <CopyButton value={description} />
-                </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() =>
-                    description !== (card.description ?? '') && patch({ description })
-                  }
-                  placeholder="A descrição que vai no post…"
-                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              </div>
-
-
 
               {/* Pinned comment — written last, pasted somewhere else. */}
               <div>
@@ -650,22 +667,47 @@ function CardEditor({
               <div>
                 <p className="mb-1.5 text-sm font-medium">Tags internas</p>
                 <div className="mb-2 flex flex-wrap gap-1.5">
-                  {card.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="flex items-center gap-1 rounded-lg bg-surface-elevated px-2 py-1 text-xs"
-                    >
-                      #{tag}
-                      <button
-                        onClick={() =>
-                          patchWith((c) => ({ tags: c.tags.filter((x) => x !== tag) }))
-                        }
-                        className="text-muted-foreground hover:text-destructive"
+                  {card.tags.map((tag) =>
+                    editingTag === tag ? (
+                      <input
+                        key={tag}
+                        autoFocus
+                        value={tagEdit}
+                        onChange={(e) => setTagEdit(e.target.value)}
+                        onBlur={commitTagEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitTagEdit()
+                          if (e.key === 'Escape') {
+                            // Esc would close the whole card; here it only cancels.
+                            e.stopPropagation()
+                            setEditingTag(null)
+                          }
+                        }}
+                        className="no-drag h-7 w-32 rounded-lg border border-primary/50 bg-surface-elevated px-2 text-xs focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        key={tag}
+                        onDoubleClick={() => {
+                          setEditingTag(tag)
+                          setTagEdit(tag)
+                        }}
+                        title="Duplo clique para editar"
+                        className="flex cursor-text select-none items-center gap-1 rounded-lg bg-surface-elevated px-2 py-1 text-xs"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+                        #{tag}
+                        <button
+                          onClick={() =>
+                            patchWith((c) => ({ tags: c.tags.filter((x) => x !== tag) }))
+                          }
+                          title="Remover"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )
+                  )}
                   {card.tags.length === 0 && (
                     <span className="text-xs text-muted-foreground">
                       Só para organizar aqui dentro.
@@ -788,96 +830,23 @@ function TagPresets({
   onClearDraft: () => void
 }): JSX.Element {
   const cards = useAppStore((s) => s.cards)
-  const presets = useAppStore((s) => s.settings.cardTagPresets)
+  const settings = useAppStore((s) => s.settings)
   const saveSettings = useAppStore((s) => s.saveSettings)
-  const [managing, setManaging] = useState(false)
-
-  // Tags used elsewhere, most frequent first.
-  const used = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const card of cards) {
-      for (const tag of card.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
-      .map(([tag]) => tag)
-  }, [cards])
-
-  const pinned = presets.filter((t) => !current.includes(t))
-  const suggestions = used.filter((t) => !current.includes(t) && !presets.includes(t)).slice(0, 8)
-  const trimmedDraft = draft.trim()
-  const canPin = trimmedDraft.length > 0 && !presets.includes(trimmedDraft)
-
-  const setPresets = (next: string[]): void => void saveSettings({ cardTagPresets: next })
-
+  const used = useMemo(() => byUse(cards.flatMap((c) => c.tags)), [cards])
   return (
-    <div className="mt-2">
-      {(pinned.length > 0 || suggestions.length > 0) && (
-        <div className="flex flex-wrap gap-1.5">
-          {pinned.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => onPick(tag)}
-              className="no-drag flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary/20"
-            >
-              <Star className="h-2.5 w-2.5 fill-current" />#{tag}
-            </button>
-          ))}
-          {suggestions.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => onPick(tag)}
-              className="no-drag rounded-lg border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-1.5 flex items-center gap-2">
-        {canPin && (
-          <button
-            onClick={() => {
-              setPresets([...presets, trimmedDraft])
-              onPick(trimmedDraft)
-              onClearDraft()
-            }}
-            className="no-drag flex items-center gap-1 text-[11px] text-primary transition-colors hover:underline"
-          >
-            <Star className="h-2.5 w-2.5" /> Fixar “{trimmedDraft}”
-          </button>
-        )}
-        <button
-          onClick={() => setManaging((m) => !m)}
-          className="no-drag ml-auto text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {managing ? 'Fechar' : 'Editar fixas'}
-        </button>
-      </div>
-
-      {managing && (
-        <div className="mt-2 rounded-lg border border-border/70 bg-surface/50 p-2">
-          <p className="mb-1.5 text-[11px] text-muted-foreground">
-            Tags fixas aparecem em todos os cards. Separe por vírgula.
-          </p>
-          <Input
-            defaultValue={presets.join(', ')}
-            placeholder="tensura, mushoku tensei, bleach"
-            onBlur={(e) =>
-              setPresets(
-                e.target.value
-                  .split(',')
-                  .map((t) => t.trim())
-                  .filter(Boolean)
-              )
-            }
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="h-8 text-xs"
-          />
-        </div>
-      )}
-    </div>
+    <QuickPicks
+      kind="tag"
+      current={current}
+      used={used}
+      presets={settings.cardTagPresets}
+      hidden={settings.cardTagHidden ?? []}
+      onPick={onPick}
+      onPresetsChange={(next) => void saveSettings({ cardTagPresets: next })}
+      onHiddenChange={(next) => void saveSettings({ cardTagHidden: next })}
+      draft={draft}
+      onClearDraft={onClearDraft}
+      suggestionLimit={8}
+    />
   )
 }
 
@@ -894,84 +863,25 @@ function StepPresets({
 }: {
   current: string[]
   onPick: (label: string) => void
-}): JSX.Element | null {
+}): JSX.Element {
   const cards = useAppStore((s) => s.cards)
-  const presets = useAppStore((s) => s.settings.cardStepPresets)
+  const settings = useAppStore((s) => s.settings)
   const saveSettings = useAppStore((s) => s.saveSettings)
-  const [managing, setManaging] = useState(false)
-
-  const used = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const card of cards) {
-      for (const step of card.checklist ?? []) {
-        counts.set(step.label, (counts.get(step.label) ?? 0) + 1)
-      }
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
-      .map(([label]) => label)
-  }, [cards])
-
-  const pinned = presets.filter((p) => !current.includes(p))
-  const suggestions = used
-    .filter((u) => !current.includes(u) && !presets.includes(u))
-    .slice(0, 6)
-
-  if (pinned.length === 0 && suggestions.length === 0 && !managing) {
-    return (
-      <button
-        onClick={() => setManaging(true)}
-        className="no-drag mt-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        Editar etapas fixas
-      </button>
-    )
-  }
-
+  const used = useMemo(
+    () => byUse(cards.flatMap((c) => (c.checklist ?? []).map((step) => step.label))),
+    [cards]
+  )
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap gap-1.5">
-        {pinned.map((label) => (
-          <button
-            key={label}
-            onClick={() => onPick(label)}
-            className="no-drag flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary/20"
-          >
-            <Plus className="h-2.5 w-2.5" />
-            {label}
-          </button>
-        ))}
-        {suggestions.map((label) => (
-          <button
-            key={label}
-            onClick={() => onPick(label)}
-            className="no-drag rounded-lg border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => setManaging((m) => !m)}
-        className="no-drag mt-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {managing ? 'Fechar' : 'Editar fixas'}
-      </button>
-      {managing && (
-        <input
-          defaultValue={presets.join(', ')}
-          onBlur={(e) =>
-            void saveSettings({
-              cardStepPresets: e.target.value
-                .split(',')
-                .map((v) => v.trim())
-                .filter(Boolean)
-            })
-          }
-          placeholder="Roteiro, Gravação, Edição…"
-          className="no-drag mt-1 h-8 w-full rounded-lg border border-input bg-surface/60 px-2 text-[11px] focus:border-primary/60 focus:outline-none"
-        />
-      )}
-    </div>
+    <QuickPicks
+      kind="step"
+      current={current}
+      used={used}
+      presets={settings.cardStepPresets}
+      hidden={settings.cardStepHidden ?? []}
+      onPick={onPick}
+      onPresetsChange={(next) => void saveSettings({ cardStepPresets: next })}
+      onHiddenChange={(next) => void saveSettings({ cardStepHidden: next })}
+      suggestionLimit={6}
+    />
   )
 }

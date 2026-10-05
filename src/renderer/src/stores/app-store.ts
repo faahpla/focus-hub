@@ -92,6 +92,8 @@ const EMPTY: AppData = {
     musicSources: [],
     cardTagPresets: [],
     cardStepPresets: [],
+    cardTagHidden: [],
+    cardStepHidden: [],
     flow: emptyFlow(),
     alwaysElevate: false
   },

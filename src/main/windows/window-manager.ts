@@ -16,6 +16,29 @@ function rendererUrl(hash = ''): string {
   return `${APP_ORIGIN}/index.html${hash}`
 }
 
+/**
+ * Keep a window on the app. A file dropped anywhere but a drop zone makes the
+ * window navigate to it, replacing the whole app with the file; nothing in
+ * the app itself navigates the window (routing is by hash, which never fires
+ * this), so a target on another scheme or host is simply refused.
+ *
+ * Compared by scheme and host, not by origin: app:// and file:// both have
+ * the opaque origin "null", and would compare equal.
+ */
+function guardNavigation(win: BrowserWindow): void {
+  win.webContents.on('will-navigate', (event, url) => {
+    try {
+      const target = new URL(url)
+      const current = new URL(win.webContents.getURL())
+      if (target.protocol !== current.protocol || target.host !== current.host) {
+        event.preventDefault()
+      }
+    } catch {
+      event.preventDefault()
+    }
+  })
+}
+
 export class WindowManager {
   private main: BrowserWindow | null = null
   private quickCapture: BrowserWindow | null = null
@@ -50,6 +73,7 @@ export class WindowManager {
       shell.openExternal(details.url)
       return { action: 'deny' }
     })
+    guardNavigation(win)
 
     // Forward renderer diagnostics to the main-process stdout so they show up
     // in the terminal / dev log (invaluable when the window renders black).
@@ -116,6 +140,7 @@ export class WindowManager {
     win.on('closed', () => {
       this.quickCapture = null
     })
+    guardNavigation(win)
 
     win.loadURL(rendererUrl('#/quick-capture'))
 

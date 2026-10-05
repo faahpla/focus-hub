@@ -356,6 +356,12 @@ export interface Settings {
   /** One-click steps offered on every card, for a repeating production flow. */
   cardStepPresets: string[]
   /**
+   * Suggestions the user dismissed. Suggestions come from what other cards
+   * use, so a typo or a one-off would otherwise keep coming back forever.
+   */
+  cardTagHidden: string[]
+  cardStepHidden: string[]
+  /**
    * Flow settings that apply to every session, with or without a project.
    * A project's own Flow is layered on top of this one (see shared/flow.ts).
    */

@@ -11,12 +11,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { DynamicIcon } from '@/components/dynamic-icon'
 import { useAppStore } from '@/stores/app-store'
+import { useBoardsUiStore } from '@/stores/boards-ui-store'
 import { BoardDialog } from './board-dialog'
 import { BoardView } from './board-view'
 import { JoinDialog } from '@/features/sharing/join-dialog'
 import { ShareDialog } from '@/features/sharing/share-dialog'
-
-const LAST_BOARD_KEY = 'focus-hub:last-board'
 
 export function BoardsPage(): JSX.Element {
   const boards = useAppStore((s) => s.boards)
@@ -24,9 +23,8 @@ export function BoardsPage(): JSX.Element {
   const cards = useAppStore((s) => s.cards)
   const deleteBoard = useAppStore((s) => s.deleteBoard)
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => localStorage.getItem(LAST_BOARD_KEY)
-  )
+  const selectedId = useBoardsUiStore((s) => s.selectedId)
+  const setSelectedId = useBoardsUiStore((s) => s.select)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
   const [sharing, setSharing] = useState(false)
@@ -34,8 +32,10 @@ export function BoardsPage(): JSX.Element {
 
   const active = boards.find((b) => b.id === selectedId) ?? boards[0]
 
+  // Remember the board actually shown, which falls back to the first one
+  // when the stored choice no longer exists.
   useEffect(() => {
-    if (active) localStorage.setItem(LAST_BOARD_KEY, active.id)
+    if (active && active.id !== selectedId) setSelectedId(active.id)
   }, [active?.id])
 
   if (boards.length === 0) {

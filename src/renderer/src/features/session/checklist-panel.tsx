@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Pencil, Plus, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { ChecklistItem } from '@shared/types'
 import { SortableList, SortableItem, DragHandle } from '@/components/ui/sortable'
@@ -25,6 +25,9 @@ export function ChecklistPanel({
   showHeader?: boolean
 }): JSX.Element {
   const [draft, setDraft] = useState('')
+  // One item at a time is being renamed; its text lives here until it is kept.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
 
   const done = items.filter((c) => c.done).length
   const total = items.length
@@ -42,6 +45,20 @@ export function ChecklistPanel({
 
   const remove = (id: string): void => {
     onChange(items.filter((c) => c.id !== id))
+  }
+
+  const startEditing = (item: ChecklistItem): void => {
+    setEditingId(item.id)
+    setEditDraft(item.label)
+  }
+
+  /** Keep the new text. Emptied out it means "never mind", not "delete". */
+  const commitEdit = (): void => {
+    const label = editDraft.trim()
+    if (editingId && label) {
+      onChange(items.map((c) => (c.id === editingId ? { ...c, label } : c)))
+    }
+    setEditingId(null)
   }
 
   const reorder = (ids: string[]): void => {
@@ -68,35 +85,63 @@ export function ChecklistPanel({
               className="no-drag group flex items-center gap-1.5 rounded-lg px-1 py-1.5 transition-colors hover:bg-surface-hover"
             >
               <DragHandle className="opacity-0 group-hover:opacity-100" />
-              <button
-                onClick={() => toggle(item.id)}
-                className="flex flex-1 items-center gap-2.5 text-left"
-              >
-                <span
-                  className={cn(
-                    'flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors',
-                    item.done
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border group-hover:border-primary/50'
-                  )}
+              {editingId === item.id ? (
+                <input
+                  autoFocus
+                  value={editDraft}
+                  onChange={(e) => setEditDraft(e.target.value)}
+                  onBlur={commitEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitEdit()
+                    if (e.key === 'Escape') {
+                      // Esc closes the card dialog too; this one only cancels the edit.
+                      e.stopPropagation()
+                      setEditingId(null)
+                    }
+                  }}
+                  className="no-drag h-7 flex-1 rounded-md border border-primary/50 bg-surface-elevated px-2 text-sm text-foreground focus:outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => toggle(item.id)}
+                  className="flex flex-1 items-center gap-2.5 text-left"
                 >
-                  {item.done && (
-                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    </motion.span>
-                  )}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm transition-colors',
-                    item.done ? 'text-muted-foreground line-through' : 'text-foreground'
-                  )}
+                  <span
+                    className={cn(
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors',
+                      item.done
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border group-hover:border-primary/50'
+                    )}
+                  >
+                    {item.done && (
+                      <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                        <Check className="h-3 w-3" strokeWidth={3} />
+                      </motion.span>
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-sm transition-colors',
+                      item.done ? 'text-muted-foreground line-through' : 'text-foreground'
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              )}
+              {editingId !== item.id && (
+                <button
+                  onClick={() => startEditing(item)}
+                  title="Editar"
+                  className="shrink-0 text-muted-foreground/50 opacity-0 transition-all hover:text-foreground group-hover:opacity-100"
                 >
-                  {item.label}
-                </span>
-              </button>
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => remove(item.id)}
+                title="Remover"
                 className="shrink-0 text-muted-foreground/50 opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
               >
                 <X className="h-3.5 w-3.5" />

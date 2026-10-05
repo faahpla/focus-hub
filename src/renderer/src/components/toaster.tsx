@@ -38,7 +38,21 @@ export function Toaster(): JSX.Element {
             >
               <div className="flex items-start gap-2.5">
                 <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', ACCENT[t.variant])} />
-                <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    'min-w-0 flex-1',
+                    t.onClick && 'cursor-pointer rounded-lg transition-opacity hover:opacity-80'
+                  )}
+                  role={t.onClick ? 'button' : undefined}
+                  onClick={
+                    t.onClick
+                      ? () => {
+                          t.onClick?.()
+                          dismiss(t.id)
+                        }
+                      : undefined
+                  }
+                >
                   <p className="text-sm font-semibold">{t.title}</p>
                   {t.description && (
                     <p className="mt-0.5 text-xs text-muted-foreground">{t.description}</p>
@@ -52,6 +66,9 @@ export function Toaster(): JSX.Element {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {t.hint && (
+                    <p className="mt-1.5 text-[11px] font-medium text-primary">{t.hint} →</p>
                   )}
                 </div>
                 <button

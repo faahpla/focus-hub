@@ -109,6 +109,7 @@ export const IPC = {
   SYNC_UPDATE_MEMBER: 'sync:updateMember',
   SYNC_REMOVE_MEMBER: 'sync:removeMember',
   ATTACH_FILES: 'attachments:attach',
+  ATTACH_PATHS: 'attachments:attachPaths',
   DOWNLOAD_ATTACHMENTS: 'attachments:download',
   REMOVE_ATTACHMENT: 'attachments:remove',
 
@@ -237,6 +238,8 @@ export interface FocusHubApi {
    * cloud for two days; otherwise only their path on this PC is kept.
    */
   attachFiles(cardId: string): Promise<SyncResult & { count?: number }>
+  /** Attach files dropped on the card, same rules as attachFiles. */
+  attachDroppedFiles(cardId: string, files: File[]): Promise<SyncResult & { count?: number }>
   /** Save one attachment, or all of a card's, to Downloads/Focus HUB and open the folder. */
   downloadAttachments(
     cardId: string,

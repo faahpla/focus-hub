@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS: Settings = {
   musicSources: [],
   cardTagPresets: [],
   cardStepPresets: [...DEFAULT_STEP_PRESETS],
+  cardTagHidden: [],
+  cardStepHidden: [],
   flow: emptyFlow(),
   alwaysElevate: false
 }
@@ -191,6 +193,14 @@ export class Repository {
     }
     if (data.settings && !Array.isArray(data.settings.cardStepPresets)) {
       data.settings.cardStepPresets = [...DEFAULT_STEP_PRESETS]
+      changed = true
+    }
+    if (data.settings && !Array.isArray(data.settings.cardTagHidden)) {
+      data.settings.cardTagHidden = []
+      changed = true
+    }
+    if (data.settings && !Array.isArray(data.settings.cardStepHidden)) {
+      data.settings.cardStepHidden = []
       changed = true
     }
     // Flow used to exist only inside projects, so a session without one did

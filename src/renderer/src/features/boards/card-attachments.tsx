@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Cloud,
   Download,
@@ -41,22 +41,12 @@ function expiresLabel(iso: string): string {
   return `some em ${Math.max(1, Math.round(ms / 60_000))} min`
 }
 
-/**
- * Files on a card — the audio, the thumbnail, the notes — under the Assets
- * text. On a shared board they live in the cloud for two days so the other
- * person can download them; on a board only on this PC they stay where they
- * are and open from there.
- */
-export function CardAttachments({ card, board }: { card: BoardCard; board: Board }): JSX.Element {
-  const pushToast = useToastStore((s) => s.push)
-  const [busy, setBusy] = useState<'attach' | 'download' | null>(null)
-  const files = card.attachments ?? []
-  const shared = Boolean(board.shared)
+type AttachResult = { ok: boolean; error?: string; count?: number }
 
-  const attach = async (): Promise<void> => {
-    setBusy('attach')
-    const res = await window.focusHub.attachFiles(card.id)
-    setBusy(null)
+/** The notice after attaching, the same whether the files were picked or dropped. */
+function useReportAttach(shared: boolean): (res: AttachResult) => void {
+  const pushToast = useToastStore((s) => s.push)
+  return (res) => {
     if (res.ok) {
       pushToast({
         title: shared
@@ -68,6 +58,107 @@ export function CardAttachments({ card, board }: { card: BoardCard; board: Board
     } else if (res.error) {
       pushToast({ title: 'Não deu para anexar', lines: [res.error], variant: 'warning' })
     }
+  }
+}
+
+/**
+ * Takes files dropped anywhere on the Assets block — the text box included,
+ * where a drop would otherwise paste the file's path in as text.
+ *
+ * dragenter and dragleave fire again for every child the pointer crosses, so
+ * a depth count, not the last event, says whether the drag is still inside.
+ */
+export function AssetsDropZone({
+  card,
+  board,
+  children
+}: {
+  card: BoardCard
+  board: Board
+  children: React.ReactNode
+}): JSX.Element {
+  const shared = Boolean(board.shared)
+  const report = useReportAttach(shared)
+  const [over, setOver] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const depth = useRef(0)
+  const carriesFiles = (e: React.DragEvent): boolean => e.dataTransfer.types.includes('Files')
+
+  return (
+    <div
+      className="relative"
+      onDragEnter={(e) => {
+        if (!carriesFiles(e)) return
+        e.preventDefault()
+        depth.current += 1
+        setOver(true)
+      }}
+      onDragOver={(e) => {
+        if (!carriesFiles(e)) return
+        e.preventDefault()
+        // Stop here, or the window-wide guard would mark this zone "no drop" too.
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={(e) => {
+        if (!carriesFiles(e)) return
+        depth.current = Math.max(0, depth.current - 1)
+        if (depth.current === 0) setOver(false)
+      }}
+      onDrop={async (e) => {
+        if (!carriesFiles(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+        depth.current = 0
+        setOver(false)
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length === 0 || busy) return
+        setBusy(true)
+        report(await window.focusHub.attachDroppedFiles(card.id, files))
+        setBusy(false)
+      }}
+    >
+      {children}
+      {(over || busy) && (
+        <div className="pointer-events-none absolute -inset-1.5 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10">
+          <span className="flex items-center gap-2 rounded-lg bg-surface-elevated px-3 py-1.5 text-xs font-medium text-primary shadow-elevated">
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5" />
+            )}
+            {busy
+              ? shared
+                ? 'Enviando…'
+                : 'Anexando…'
+              : shared
+                ? 'Solte para enviar ao card'
+                : 'Solte para anexar'}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Files on a card — the audio, the thumbnail, the notes — under the Assets
+ * text. On a shared board they live in the cloud for two days so the other
+ * person can download them; on a board only on this PC they stay where they
+ * are and open from there.
+ */
+export function CardAttachments({ card, board }: { card: BoardCard; board: Board }): JSX.Element {
+  const pushToast = useToastStore((s) => s.push)
+  const [busy, setBusy] = useState<'attach' | 'download' | null>(null)
+  const files = card.attachments ?? []
+  const shared = Boolean(board.shared)
+  const report = useReportAttach(shared)
+
+  const attach = async (): Promise<void> => {
+    setBusy('attach')
+    const res = await window.focusHub.attachFiles(card.id)
+    setBusy(null)
+    report(res)
   }
 
   const download = async (attachmentId?: string): Promise<void> => {
@@ -123,12 +214,11 @@ export function CardAttachments({ card, board }: { card: BoardCard; board: Board
         )}
       </div>
 
-      {shared && (
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Neste quadro compartilhado, os arquivos sobem para a nuvem e somem 2 dias depois.
-          Baixados, vão para Downloads › Focus HUB.
-        </p>
-      )}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Arraste arquivos para cá, ou use Anexar.
+        {shared &&
+          ' Neste quadro compartilhado eles sobem para a nuvem e somem 2 dias depois; baixados, vão para Downloads › Focus HUB.'}
+      </p>
     </div>
   )
 }

@@ -10,6 +10,10 @@ export interface Toast {
   lines?: string[]
   variant: ToastVariant
   duration: number
+  /** Makes the notice a button: clicking it does this, then closes it. */
+  onClick?: () => void
+  /** What clicking does, said under the text — "Clique para abrir o quadro". */
+  hint?: string
 }
 
 interface ToastState {
