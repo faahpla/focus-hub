@@ -227,6 +227,8 @@ export interface BoardCard {
    * halve the room for both.
    */
   summary?: string
+  /** The B-roll shot list: the cutaways to film or find. Third tab of that pane. */
+  bRoll?: string
   /**
    * Publish-ready title, kept apart from the card's own name. The card is
    * titled for finding it on the board; this is the one that gets copied into

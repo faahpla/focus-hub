@@ -5,6 +5,7 @@ import {
   CalendarPlus,
   Check,
   ChevronDown,
+  Clapperboard,
   Copy,
   FileText,
   ListChecks,
@@ -115,7 +116,7 @@ function CardEditor({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [editingTag, setEditingTag] = useState<string | null>(null)
   const [tagEdit, setTagEdit] = useState('')
-  const [pane, setPane] = useState<'Roteiro' | 'Resumo'>('Roteiro')
+  const [pane, setPane] = useState<'Roteiro' | 'Resumo' | 'B-roll'>('Roteiro')
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
 
   const assets = card.assets ?? []
@@ -175,6 +176,36 @@ function CardEditor({
   const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
     patch({ summary: next })
   )
+  const [bRoll, setBRoll] = useAutosavedText(card.bRoll ?? '', (next) => patch({ bRoll: next }))
+
+  /** The panes that share the left column, in tab order. */
+  const panes = {
+    Roteiro: {
+      icon: FileText,
+      value: notes,
+      set: setNotes,
+      field: 'notes',
+      placeholder: 'Escreva ou cole seu roteiro aqui…',
+      hint: 'Modo leitura abre em tela cheia com texto grande'
+    },
+    Resumo: {
+      icon: AlignLeft,
+      value: summary,
+      set: setSummary,
+      field: 'summary',
+      placeholder: 'Do que é este vídeo, em poucas linhas…',
+      hint: 'A ideia do vídeo em poucas linhas, para bater o olho e lembrar'
+    },
+    'B-roll': {
+      icon: Clapperboard,
+      value: bRoll,
+      set: setBRoll,
+      field: 'bRoll',
+      placeholder: 'Uma tomada por linha: o que gravar ou buscar de apoio…',
+      hint: 'As imagens de cobertura do vídeo — o que gravar ou buscar'
+    }
+  } as const
+  const current = panes[pane]
 
   // One line, one entry - see linesToAssets.
   const [assetsText, setAssetsText] = useAutosavedText(
@@ -215,7 +246,7 @@ function CardEditor({
             <DialogHeader className="mb-0">
               <DialogTitle className="sr-only">Editar card</DialogTitle>
               <DialogDescription className="sr-only">
-                Edite o roteiro, o resumo, a descrição e os assets do card.
+                Edite o roteiro, o resumo, o B-roll, a descrição e os assets do card.
               </DialogDescription>
             </DialogHeader>
             <div className="flex items-start gap-3">
@@ -402,14 +433,15 @@ function CardEditor({
             {/* Script */}
             <div className="flex min-w-0 flex-1 flex-col p-6">
               {/*
-                Two panes over the same space: the script and a short summary.
-                They're different lengths and read at different moments, so a
-                tab beats stacking them and halving the room for both.
+                Panes over the same space: the script, a short summary and the
+                B-roll list. They're different lengths and read at different
+                moments, so tabs beat stacking them and splitting the room.
               */}
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
-                  {(['Roteiro', 'Resumo'] as const).map((t) => {
-                    const filled = t === 'Roteiro' ? notes.trim() : summary.trim()
+                  {(Object.keys(panes) as (keyof typeof panes)[]).map((t) => {
+                    const { icon: Icon, value } = panes[t]
+                    const filled = value.trim()
                     return (
                       <button
                         key={t}
@@ -421,11 +453,7 @@ function CardEditor({
                             : 'text-muted-foreground hover:text-foreground'
                         )}
                       >
-                        {t === 'Roteiro' ? (
-                          <FileText className="h-4 w-4 opacity-70" />
-                        ) : (
-                          <AlignLeft className="h-4 w-4 opacity-70" />
-                        )}
+                        <Icon className="h-4 w-4 opacity-70" />
                         {t}
                         {filled && pane !== t && (
                           <span className="h-1 w-1 rounded-full bg-primary" />
@@ -435,7 +463,7 @@ function CardEditor({
                   })}
                 </div>
                 <div className="flex items-center gap-1">
-                  <CopyButton value={pane === 'Roteiro' ? notes : summary} />
+                  <CopyButton value={current.value} />
                   {pane === 'Roteiro' && (
                     <button
                       onClick={() => setReaderOpen(true)}
@@ -446,35 +474,28 @@ function CardEditor({
                   )}
                 </div>
               </div>
-              {pane === 'Roteiro' ? (
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  onBlur={() => notes !== (card.notes ?? '') && patch({ notes })}
-                  placeholder="Escreva ou cole seu roteiro aqui…"
-                  className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              ) : (
-                <textarea
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  onBlur={() => summary !== (card.summary ?? '') && patch({ summary })}
-                  placeholder="Do que é este vídeo, em poucas linhas…"
-                  className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              )}
+              {/* Keyed so switching tabs swaps the field instead of reusing it
+                  with the old pane's scroll and selection. */}
+              <textarea
+                key={pane}
+                value={current.value}
+                onChange={(e) => current.set(e.target.value)}
+                onBlur={() =>
+                  current.value !== (card[current.field] ?? '') &&
+                  patch({ [current.field]: current.value })
+                }
+                placeholder={current.placeholder}
+                className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+              />
               <p className="mt-2 text-[11px] text-muted-foreground">
-                {pane === 'Roteiro' ? (
-                  <>
-                    {notes.trim() ? `${notes.trim().split(/\s+/).length} palavras` : 'Vazio'} ·
-                    Modo leitura abre em tela cheia com texto grande
-                  </>
-                ) : (
-                  <>
-                    {summary.trim() ? `${summary.trim().length} caracteres` : 'Vazio'} · A ideia
-                    do vídeo em poucas linhas, para bater o olho e lembrar
-                  </>
-                )}
+                {!current.value.trim()
+                  ? 'Vazio'
+                  : pane === 'Roteiro'
+                    ? `${current.value.trim().split(/\s+/).length} palavras`
+                    : pane === 'B-roll'
+                      ? `${current.value.split('\n').filter((l) => l.trim()).length} tomadas`
+                      : `${current.value.trim().length} caracteres`}{' '}
+                · {current.hint}
               </p>
             </div>
 
