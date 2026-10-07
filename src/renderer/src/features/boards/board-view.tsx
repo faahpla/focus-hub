@@ -4,6 +4,7 @@ import {
   DragOverlay,
   MeasuringStrategy,
   PointerSensor,
+  closestCenter,
   closestCorners,
   pointerWithin,
   rectIntersection,
@@ -18,6 +19,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  horizontalListSortingStrategy,
   useSortable,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
@@ -73,12 +75,33 @@ function buildLanes(columns: BoardColumn[], cards: BoardCard[]): Lanes {
 }
 
 /**
+ * Columns are sortable too, by their header. Their ids carry this prefix so a
+ * column never collides with the card list it shares an id with.
+ */
+const COLUMN_PREFIX = 'col:'
+const isColumnId = (id: unknown): boolean => String(id).startsWith(COLUMN_PREFIX)
+
+/**
  * Follow the actual pointer instead of the dragged card's rect. With rect-based
  * detection the card's own box decides the target, so you had to overshoot into
  * the lower half of a column for the drop to register. Falls back to rect
  * intersection when the pointer is between droppables.
+ *
+ * Cards and columns share one drag context, so each only sees its own kind: a
+ * column wraps its whole card list, and without the split a card would land
+ * "on" the column around it instead of the card under the pointer.
  */
 const collisionDetection: CollisionDetection = (args) => {
+  if (isColumnId(args.active.id)) {
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => isColumnId(c.id))
+    })
+  }
+  args = {
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) => !isColumnId(c.id))
+  }
   const byPointer = pointerWithin(args)
   if (byPointer.length > 0) return byPointer
   const byRect = rectIntersection(args)
@@ -104,9 +127,13 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
     () => allCards.filter((c) => c.boardId === board.id),
     [allCards, board.id]
   )
+  // A dropped column holds its new place until the saved board comes back;
+  // without this it snaps home for a frame and then jumps again.
+  const [columnOverride, setColumnOverride] = useState<BoardColumn[] | null>(null)
+  useEffect(() => setColumnOverride(null), [board.columns])
   const columns = useMemo(
-    () => [...board.columns].sort((a, b) => a.order - b.order),
-    [board.columns]
+    () => columnOverride ?? [...board.columns].sort((a, b) => a.order - b.order),
+    [board.columns, columnOverride]
   )
 
   const [lanes, setLanes] = useState<Lanes>(() => buildLanes(columns, cards))
@@ -169,9 +196,18 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
     setActiveId(e.active.id as string)
   }
 
+  const moveColumn = (activeId: string, overId: string): void => {
+    const from = columns.findIndex((c) => COLUMN_PREFIX + c.id === activeId)
+    const to = columns.findIndex((c) => COLUMN_PREFIX + c.id === overId)
+    if (from < 0 || to < 0 || from === to) return
+    const next = arrayMove(columns, from, to).map((c, order) => ({ ...c, order }))
+    setColumnOverride(next)
+    void saveBoard({ ...board, columns: next })
+  }
+
   const onDragOver = (e: DragOverEvent): void => {
     const { active, over } = e
-    if (!over) return
+    if (!over || isColumnId(active.id)) return
     const activeCardId = active.id as string
     const overId = over.id as string
 
@@ -198,6 +234,10 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
     setActiveId(null)
     const { active, over } = e
     const activeCardId = active.id as string
+    if (isColumnId(activeCardId)) {
+      if (over) moveColumn(activeCardId, over.id as string)
+      return
+    }
 
     let final = lanes
     if (over) {
@@ -288,6 +328,10 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
         onDragCancel={onDragCancel}
       >
         <div className="flex h-full gap-4 overflow-x-auto px-8 pb-6 scrollbar-thin">
+          <SortableContext
+            items={columns.map((c) => COLUMN_PREFIX + c.id)}
+            strategy={horizontalListSortingStrategy}
+          >
           {columns.map((column) => (
             <Column
               key={column.id}
@@ -314,6 +358,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
               assigneeOf={assigneeOf}
             />
           ))}
+          </SortableContext>
 
           {mayManageColumns && (
             <button
@@ -402,6 +447,8 @@ function Column({
   assigneeOf: (card: BoardCard) => Person | undefined
 }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
+  // The header drags the whole column; the card list keeps dragging cards.
+  const sortable = useSortable({ id: COLUMN_PREFIX + column.id, disabled: !canManage })
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(column.name)
   const [adding, setAdding] = useState(false)
@@ -422,9 +469,27 @@ function Column({
   }
 
   return (
-    <div className="flex h-full w-[280px] shrink-0 flex-col">
-      {/* Header */}
-      <div className="mb-2 flex items-center gap-2 px-1">
+    <div
+      ref={sortable.setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(sortable.transform),
+        transition: sortable.transition
+      }}
+      className={cn(
+        'flex h-full w-[280px] shrink-0 flex-col rounded-2xl',
+        sortable.isDragging && 'relative z-10 bg-surface/90 opacity-80 shadow-elevated'
+      )}
+    >
+      {/* Header — also the handle for dragging the column sideways. */}
+      <div
+        ref={sortable.setActivatorNodeRef}
+        {...(canManage && !renaming ? { ...sortable.attributes, ...sortable.listeners } : {})}
+        title={canManage ? 'Arraste para mudar a coluna de lugar' : undefined}
+        className={cn(
+          'mb-2 flex touch-none items-center gap-2 rounded-lg px-1 py-0.5',
+          canManage && 'cursor-grab active:cursor-grabbing'
+        )}
+      >
         {column.cancelled ? (
           <Ban className="h-3.5 w-3.5 shrink-0 text-destructive" />
         ) : column.done ? (
@@ -502,7 +567,7 @@ function Column({
                 </span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <div className="flex gap-1.5 px-2.5 py-2">
+              <div className="grid grid-cols-7 gap-1.5 px-2.5 py-2">
                 {COLUMN_COLORS.map((color) => (
                   <button
                     key={color}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Camera, Minus, ShieldAlert, Square, X } from 'lucide-react'
+import { ArrowDownCircle, Camera, Minus, RefreshCw, ShieldAlert, Square, X } from 'lucide-react'
 import { useToastStore } from '@/stores/toast-store'
 import { cn } from '@/lib/utils'
+import type { UpdateStatus } from '@shared/types'
 
 export function TitleBar(): JSX.Element {
   const push = useToastStore((s) => s.push)
@@ -68,6 +69,7 @@ export function TitleBar(): JSX.Element {
             admin
           </button>
         )}
+        <UpdatePill />
       </div>
       <div className="no-drag flex items-center gap-1">
         <WinButton
@@ -108,4 +110,59 @@ function WinButton({
       {...props}
     />
   )
+}
+
+/**
+ * Where a new version shows itself. The updater downloads on its own, so this
+ * stays quiet until there is something to see: a small progress pill while
+ * downloading, then a button that restarts into the new version. It sits in
+ * the title bar because that is on screen on every page — the one-off toast
+ * was easy to miss, and Ajustes is somewhere nobody goes to check.
+ */
+function UpdatePill(): JSX.Element | null {
+  const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
+
+  useEffect(() => {
+    let alive = true
+    void window.focusHub.getUpdateStatus().then((s) => alive && setStatus(s))
+    const off = window.focusHub.onUpdateStatus(setStatus)
+    return () => {
+      alive = false
+      off()
+    }
+  }, [])
+
+  const version = status.version ? ` ${status.version}` : ''
+
+  if (status.state === 'available' || status.state === 'downloading') {
+    return (
+      <span
+        title="Uma versão nova está baixando. Quando terminar, é só reiniciar."
+        className="no-drag flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+      >
+        <ArrowDownCircle className="h-3 w-3 animate-pulse" />
+        Baixando atualização{version}
+        {status.percent !== undefined && <span className="tabular">· {status.percent}%</span>}
+      </span>
+    )
+  }
+
+  if (status.state === 'downloaded') {
+    return (
+      <button
+        onClick={() => window.focusHub.installUpdate()}
+        title="Fecha o Focus HUB, instala a versão nova e abre de novo. Seus dados ficam."
+        className="no-drag relative flex items-center gap-1 rounded-md border border-success/40 bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success transition-colors hover:bg-success/25"
+      >
+        <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+        </span>
+        <RefreshCw className="h-3 w-3" />
+        Atualização{version} pronta · Reiniciar
+      </button>
+    )
+  }
+
+  return null
 }

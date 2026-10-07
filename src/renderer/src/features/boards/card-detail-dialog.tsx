@@ -294,6 +294,9 @@ function CardEditor({
                   dropped && 'decoration-destructive/60'
                 )}
               />
+              <div className="mt-1 shrink-0">
+                <CopyButton value={title.trim()} />
+              </div>
             </div>
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span>em</span>
@@ -568,27 +571,6 @@ function CardEditor({
                 <CardAttachments card={card} board={board} />
               </AssetsDropZone>
 
-              {/* Description */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
-                  </p>
-                  <CopyButton value={description} />
-                </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() =>
-                    description !== (card.description ?? '') && patch({ description })
-                  }
-                  placeholder="A descrição que vai no post…"
-                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              </div>
-
-
-
               {/* Publish title — separate from the card's own name, which is
                   written to find it on the board, not to go on the video. */}
               <div>
@@ -613,6 +595,25 @@ function CardEditor({
                     {publishTitle.trim().length} caracteres
                   </p>
                 )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
+                  </p>
+                  <CopyButton value={description} />
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() =>
+                    description !== (card.description ?? '') && patch({ description })
+                  }
+                  placeholder="A descrição que vai no post…"
+                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
               </div>
 
               {/* Pinned comment — written last, pasted somewhere else. */}

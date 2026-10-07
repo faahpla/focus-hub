@@ -50,6 +50,11 @@ export class UpdateService {
       this.set({ state: 'unsupported' })
       return this.status
     }
+    // Checking again would reset the state to 'checking' and hide an update
+    // that is already on its way or waiting for a restart.
+    if (this.status.state === 'downloading' || this.status.state === 'downloaded') {
+      return this.status
+    }
     try {
       await autoUpdater.checkForUpdates()
     } catch (err) {

@@ -47,14 +47,16 @@ function MainApp(): JSX.Element {
   useEffect(() => {
     const offTray = window.focusHub.onTrayNewSession(() => navigate('/'))
     const offPause = window.focusHub.onGlobalTogglePause(() => togglePause())
-    // Announce a ready update once — otherwise it only surfaces in Settings.
+    // Announce a ready update once; the title bar keeps the button after it.
     const offUpdate = window.focusHub.onUpdateStatus((status) => {
       if (status.state !== 'downloaded') return
       useToastStore.getState().push({
         title: `Atualização ${status.version} pronta`,
-        lines: ['Vá em Ajustes › Atualizações para reiniciar e instalar.'],
+        lines: ['Seus dados ficam — o app só fecha e abre de novo.'],
+        hint: 'Clique para reiniciar e atualizar',
+        onClick: () => window.focusHub.installUpdate(),
         variant: 'success',
-        duration: 10000
+        duration: 12000
       })
     })
     return () => {

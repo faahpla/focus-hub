@@ -42,7 +42,17 @@ export const COLUMN_COLORS = [
   '160 70% 48%',
   '38 92% 58%',
   '340 75% 62%',
-  '280 70% 66%'
+  '280 70% 66%',
+  // Added later, after the six above — new columns cycle through these in
+  // order, so the first six keep giving templates the colours they always had.
+  '0 78% 62%',
+  '22 90% 58%',
+  '52 90% 55%',
+  '90 60% 50%',
+  '178 70% 45%',
+  '218 85% 62%',
+  '316 70% 64%',
+  '215 15% 58%'
 ] as const
 
 export interface BoardTemplate {

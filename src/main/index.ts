@@ -333,8 +333,11 @@ if (!gotLock) {
 
     // Auto-update from GitHub Releases (installed app only). Give the window a
     // moment so the renderer is listening when the first status arrives.
+    // The app lives in the tray for days, so one check at launch would miss
+    // every release published while it stays open: look again every few hours.
     if (app.isPackaged) {
       setTimeout(() => void updates.check(), 4000)
+      setInterval(() => void updates.check(), 3 * 60 * 60 * 1000)
     }
 
     app.on('activate', () => windows.showMain())
