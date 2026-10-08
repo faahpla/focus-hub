@@ -49,16 +49,28 @@ import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
 import { AssetsDropZone, CardAttachments } from './card-attachments'
 import { QuickPicks, byUse } from './quick-picks'
 import { ScriptReader } from './script-reader'
+import { RichTextEditor } from '@/components/rich-text-editor'
+import { copyRichText, toPlainText } from '@/lib/rich-text'
 import { cn, uid } from '@/lib/utils'
 
 /** Small copy-to-clipboard affordance used next to every publishable field. */
-function CopyButton({ value, label }: { value: string; label?: string }): JSX.Element {
+function CopyButton({
+  value,
+  label,
+  rich
+}: {
+  value: string
+  label?: string
+  /** A formatted text: copied as clean text, plus HTML for apps that keep formatting. */
+  rich?: boolean
+}): JSX.Element {
   const [copied, setCopied] = useState(false)
   return (
     <button
       onClick={async () => {
         if (!value) return
-        await navigator.clipboard.writeText(value)
+        if (rich) await copyRichText(value)
+        else await navigator.clipboard.writeText(value)
         setCopied(true)
         setTimeout(() => setCopied(false), 1400)
       }}
@@ -206,6 +218,8 @@ function CardEditor({
     }
   } as const
   const current = panes[pane]
+  // Counts go by what is read, not by the markup around it.
+  const plain = useMemo(() => toPlainText(current.value), [current.value])
 
   // One line, one entry - see linesToAssets.
   const [assetsText, setAssetsText] = useAutosavedText(
@@ -466,7 +480,7 @@ function CardEditor({
                   })}
                 </div>
                 <div className="flex items-center gap-1">
-                  <CopyButton value={current.value} />
+                  <CopyButton value={current.value} rich />
                   {pane === 'Roteiro' && (
                     <button
                       onClick={() => setReaderOpen(true)}
@@ -479,26 +493,26 @@ function CardEditor({
               </div>
               {/* Keyed so switching tabs swaps the field instead of reusing it
                   with the old pane's scroll and selection. */}
-              <textarea
+              <RichTextEditor
                 key={pane}
                 value={current.value}
-                onChange={(e) => current.set(e.target.value)}
+                onChange={current.set}
                 onBlur={() =>
                   current.value !== (card[current.field] ?? '') &&
                   patch({ [current.field]: current.value })
                 }
                 placeholder={current.placeholder}
-                className="no-drag min-h-0 w-full flex-1 resize-none rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                className="min-h-0 w-full flex-1 overflow-y-auto rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed transition-colors focus-within:border-primary/60 scrollbar-thin"
               />
               <p className="mt-2 text-[11px] text-muted-foreground">
-                {!current.value.trim()
+                {!plain.trim()
                   ? 'Vazio'
                   : pane === 'Roteiro'
-                    ? `${current.value.trim().split(/\s+/).length} palavras`
+                    ? `${plain.trim().split(/\s+/).length} palavras`
                     : pane === 'B-roll'
-                      ? `${current.value.split('\n').filter((l) => l.trim()).length} tomadas`
-                      : `${current.value.trim().length} caracteres`}{' '}
-                · {current.hint}
+                      ? `${plain.split('\n').filter((l) => l.trim()).length} tomadas`
+                      : `${plain.trim().length} caracteres`}{' '}
+                · Selecione um trecho para formatar · {current.hint}
               </p>
             </div>
 
@@ -791,6 +805,7 @@ function CardEditor({
             <ScriptReader
               title={card.title}
               value={notes}
+              rich
               // Sync the card's box AND persist immediately. Routing this
               // through the card's debounce instead would stack two delays
               // before the script reaches disk.

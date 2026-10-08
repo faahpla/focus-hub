@@ -56,6 +56,7 @@ import { CardDetailDialog } from './card-detail-dialog'
 import { CardContextMenu, type ContextTarget } from './card-context-menu'
 import { cn, uid } from '@/lib/utils'
 import { dayLabel } from '@/lib/dates'
+import { toPlainText } from '@/lib/rich-text'
 import { useSyncStore } from '@/stores/sync-store'
 import { personOf, type Person } from '@/features/sharing/people'
 import { PersonChip } from '@/features/sharing/person-badge'
@@ -840,7 +841,7 @@ function CardBody({
             dropped && 'decoration-destructive/40'
           )}
         >
-          {card.notes}
+          {toPlainText(card.notes)}
         </p>
       )}
 

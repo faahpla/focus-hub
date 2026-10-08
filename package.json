@@ -29,6 +29,11 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.117.2",
+    "@tiptap/extension-highlight": "^3.31.4",
+    "@tiptap/extensions": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
     "ws": "^8.22.0"

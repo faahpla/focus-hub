@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { Check, Copy, Minus, Plus, X } from 'lucide-react'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import { cn } from '@/lib/utils'
+import { RichTextEditor } from '@/components/rich-text-editor'
+import { copyRichText } from '@/lib/rich-text'
 
 const FONT_KEY = 'focus-hub:reader-font'
 const MIN_FONT = 14
@@ -12,17 +14,22 @@ const MAX_FONT = 40
  * Full-screen reading surface for the card's script. Built for locução: wide
  * line height, adjustable type size, nothing else on screen. Still editable —
  * the text commits on blur and on close.
+ *
+ * A card's script is formatted text; a task's description is still plain, so
+ * the reader takes whichever it is given.
  */
 export function ScriptReader({
   title,
   value,
   onCommit,
-  onClose
+  onClose,
+  rich
 }: {
   title: string
   value: string
   onCommit: (next: string) => void
   onClose: () => void
+  rich?: boolean
 }): JSX.Element {
   // Autosaved while you write — a shutdown mid-script must not cost the script.
   const [text, setText, flush] = useAutosavedText(value, onCommit)
@@ -57,7 +64,8 @@ export function ScriptReader({
   }, [])
 
   const copy = async (): Promise<void> => {
-    await navigator.clipboard.writeText(text)
+    if (rich) await copyRichText(text)
+    else await navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 1400)
   }
@@ -72,9 +80,7 @@ export function ScriptReader({
       className="fixed inset-0 z-[60] flex flex-col bg-background"
     >
       <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-3">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
-          {title}
-        </p>
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{title}</p>
 
         <div className="flex items-center gap-1">
           <button
@@ -123,18 +129,30 @@ export function ScriptReader({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-        <textarea
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={flush}
-          placeholder="Escreva ou cole seu roteiro aqui…"
-          style={{ fontSize, lineHeight: 1.75 }}
-          className={cn(
-            'no-drag mx-auto block h-full w-full max-w-3xl resize-none bg-transparent px-8 py-10',
-            'placeholder:text-muted-foreground/50 focus:outline-none'
-          )}
-        />
+        {rich ? (
+          <RichTextEditor
+            autoFocus
+            value={text}
+            onChange={setText}
+            onBlur={flush}
+            placeholder="Escreva ou cole seu roteiro aqui…"
+            style={{ fontSize, lineHeight: 1.75 }}
+            className="mx-auto min-h-full w-full max-w-3xl px-8 py-10"
+          />
+        ) : (
+          <textarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={flush}
+            placeholder="Escreva ou cole seu roteiro aqui…"
+            style={{ fontSize, lineHeight: 1.75 }}
+            className={cn(
+              'no-drag mx-auto block h-full w-full max-w-3xl resize-none bg-transparent px-8 py-10',
+              'placeholder:text-muted-foreground/50 focus:outline-none'
+            )}
+          />
+        )}
       </div>
 
       <div className="border-t border-border/60 px-6 py-2 text-center text-[11px] text-muted-foreground">
