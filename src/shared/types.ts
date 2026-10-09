@@ -237,6 +237,10 @@ export interface BoardCard {
   publishTitle?: string
   /** Publish-ready description, kept apart from the script for easy copying. */
   description?: string
+  /** Publish-ready Instagram Reels caption, shown under YouTube. */
+  reels?: string
+  /** Publish-ready Facebook post text, shown under Reels. */
+  facebook?: string
   /** Publish-ready hashtags, stored verbatim so copy/paste round-trips. */
   hashtags?: string
   /**

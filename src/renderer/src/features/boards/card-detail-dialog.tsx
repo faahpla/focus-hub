@@ -7,7 +7,10 @@ import {
   ChevronDown,
   Clapperboard,
   Copy,
+  Facebook,
   FileText,
+  Film,
+  type LucideIcon,
   ListChecks,
   Maximize2,
   MessageSquare,
@@ -87,6 +90,45 @@ function CopyButton({
         </>
       )}
     </button>
+  )
+}
+
+/** One network's publish-ready text: label, copy button, box and a character count. */
+function PublishField({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  onChange: (next: string) => void
+  onBlur: () => void
+  placeholder: string
+}): JSX.Element {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {label}
+        </p>
+        <CopyButton value={value} />
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        rows={6}
+        className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+      />
+      {value.trim() && (
+        <p className="mt-1 text-[11px] text-muted-foreground">{value.trim().length} caracteres</p>
+      )}
+    </div>
   )
 }
 
@@ -184,6 +226,10 @@ function CardEditor({
   )
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
+  )
+  const [reels, setReels] = useAutosavedText(card.reels ?? '', (next) => patch({ reels: next }))
+  const [facebook, setFacebook] = useAutosavedText(card.facebook ?? '', (next) =>
+    patch({ facebook: next })
   )
   const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
     patch({ summary: next })
@@ -629,6 +675,24 @@ function CardEditor({
                   className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
                 />
               </div>
+
+              {/* The same video, posted on two more networks — each with its own text. */}
+              <PublishField
+                icon={Film}
+                label="Reels"
+                value={reels}
+                onChange={setReels}
+                onBlur={() => reels !== (card.reels ?? '') && patch({ reels })}
+                placeholder="A legenda que vai no Reels…"
+              />
+              <PublishField
+                icon={Facebook}
+                label="Facebook"
+                value={facebook}
+                onChange={setFacebook}
+                onBlur={() => facebook !== (card.facebook ?? '') && patch({ facebook })}
+                placeholder="O texto que vai no Facebook…"
+              />
 
               {/* Pinned comment — written last, pasted somewhere else. */}
               <div>
