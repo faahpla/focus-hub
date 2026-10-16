@@ -176,6 +176,7 @@ export function CardAttachments({ card, board }: { card: BoardCard; board: Board
         <AttachmentRow
           key={file.id}
           file={file}
+          shared={shared}
           disabled={busy !== null}
           onOpen={() => void download(file.id)}
           onRemove={() => void window.focusHub.removeAttachment(card.id, file.id)}
@@ -225,11 +226,14 @@ export function CardAttachments({ card, board }: { card: BoardCard; board: Board
 
 function AttachmentRow({
   file,
+  shared,
   disabled,
   onOpen,
   onRemove
 }: {
   file: CardAttachment
+  /** On a shared board a file kept as a path is not on the other person's PC. */
+  shared: boolean
   disabled: boolean
   onOpen: () => void
   onRemove: () => void
@@ -246,7 +250,11 @@ function AttachmentRow({
         <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
           {inCloud ? <Cloud className="h-2.5 w-2.5" /> : <HardDrive className="h-2.5 w-2.5" />}
           {sizeLabel(file.size)} ·{' '}
-          {inCloud && file.expiresAt ? expiresLabel(file.expiresAt) : 'neste PC'}
+          {inCloud && file.expiresAt
+            ? expiresLabel(file.expiresAt)
+            : shared
+              ? 'ainda não subiu para a nuvem'
+              : 'neste PC'}
         </p>
       </div>
       <button

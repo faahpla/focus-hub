@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import {
@@ -14,6 +15,7 @@ import type { AppData, Board, BoardCard, CardAttachment } from '../../shared/typ
 import {
   ATTACHMENT_BUCKET,
   ATTACHMENT_TTL_MS,
+  MAX_ATTACHMENT_BYTES,
   contentTypeOf,
   storageKeyOf
 } from './attachment-files'
@@ -411,6 +413,8 @@ export class SyncService {
       }
     })
     this.kick()
+    // Files attached while the board was only on this PC go up now.
+    void this.promoteLocalAttachments()
     return { ok: true }
   }
 
@@ -599,6 +603,74 @@ export class SyncService {
     return { ok: true, bytes: Buffer.from(await data.arrayBuffer()) }
   }
 
+  /**
+   * Send up the files that sit on a shared board only as a path on this PC.
+   *
+   * They get there when a card with files moves from a board of this PC to a
+   * shared one, or a board that already had files gets shared: attaching on a
+   * local board keeps just the path, and that path is someone else's drive on
+   * every other PC — the other person clicked and Windows could not find it.
+   *
+   * Only the PC that has the file can send it, so the others skip it. Runs on
+   * connect, after sharing a board and after the screen saves cards; a call
+   * that lands while one runs makes it go round once more instead of racing.
+   */
+  async promoteLocalAttachments(): Promise<void> {
+    if (this.promoting) {
+      this.promoteAgain = true
+      return
+    }
+    this.promoting = true
+    try {
+      do {
+        this.promoteAgain = false
+        await this.promoteOnce()
+      } while (this.promoteAgain)
+    } finally {
+      this.promoting = false
+    }
+  }
+
+  private promoting = false
+  private promoteAgain = false
+
+  private async promoteOnce(): Promise<void> {
+    if (!this.sb || !this.userId) return
+    const data = this.repo.getAll()
+    for (const card of data.cards) {
+      if (!sharedBoard(data, card.boardId)) continue
+      const waiting = (card.attachments ?? []).filter((a) => a.localPath && !a.storagePath)
+      const files: (LocalFile & { id: string })[] = []
+      for (const a of waiting) {
+        const bytes = await readFile(a.localPath!).catch(() => null)
+        // Not on this PC (it was attached elsewhere), or too big for the bucket.
+        if (!bytes || bytes.length > MAX_ATTACHMENT_BYTES) continue
+        files.push({ id: a.id, name: a.name, bytes })
+      }
+      if (files.length === 0) continue
+
+      const res = await this.uploadAttachments(card.boardId, files)
+      // Offline or refused: leave it for the next connect.
+      if (!res.ok || !res.attachments) return
+      const sent = new Map(files.map((f, i) => [f.id, res.attachments![i]]))
+
+      // The upload took a moment: the card may have moved on in the meantime.
+      const now = this.repo.getAll().cards.find((c) => c.id === card.id)
+      if (!now || now.boardId !== card.boardId) {
+        await this.removeStoredFiles(res.attachments.map((a) => a.storagePath!))
+        continue
+      }
+      this.rewriteCard(card.id, (c) => ({
+        ...c,
+        attachments: (c.attachments ?? []).map((a) => {
+          const up = sent.get(a.id)
+          // Same id, so the card's list keeps its order and nothing duplicates.
+          return up && !a.storagePath ? { ...up, id: a.id } : a
+        })
+      }))
+    }
+  }
+
   /** Best effort: a file that fails to go now is caught by the two-day sweep. */
   async removeStoredFiles(paths: string[]): Promise<void> {
     if (!this.sb || !this.userId || paths.length === 0) return
@@ -727,12 +799,15 @@ export class SyncService {
 
   /** The screen saved cards. `before` holds them as they were. */
   cardsWritten(before: Map<string, BoardCard>, data: AppData, ids: string[]): void {
+    let localFiles = false
     for (const id of ids) {
       const prev = before.get(id)
       const next = data.cards.find((c) => c.id === id)
       if (!next) continue
       const was = prev !== undefined && sharedBoard(data, prev.boardId) !== undefined
       const is = sharedBoard(data, next.boardId) !== undefined
+      // A card arriving from a board of this PC brings its files as paths.
+      if (is && next.attachments?.some((a) => a.localPath && !a.storagePath)) localFiles = true
       if (was && is && prev) {
         const patch = diffCard(prev, next)
         if (patch) this.outbox.push({ kind: 'card-patch', id, patch })
@@ -743,6 +818,7 @@ export class SyncService {
       }
     }
     this.kick()
+    if (localFiles) void this.promoteLocalAttachments()
   }
 
   cardDeleted(card: BoardCard | undefined, data: AppData): void {
@@ -792,6 +868,7 @@ export class SyncService {
     await this.pull()
     // Expired attachments go now and then every hour while signed in.
     void this.sweepExpired()
+    void this.promoteLocalAttachments()
     if (this.cleanupTimer) clearInterval(this.cleanupTimer)
     this.cleanupTimer = setInterval(() => void this.sweepExpired(), 60 * 60 * 1000)
   }

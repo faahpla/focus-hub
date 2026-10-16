@@ -290,15 +290,30 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     const wanted = (card.attachments ?? []).filter((a) => !attachmentId || a.id === attachmentId)
     if (wanted.length === 0) return { ok: false, error: 'Nada para baixar.' }
 
-    if (attachmentId && wanted[0].localPath) {
+    /*
+      A file kept as a path may not be on this PC at all: on a shared board
+      it is the path on the PC of whoever attached it, until that PC sends it
+      up. Check first — handing Windows a missing path pops its own error box.
+    */
+    const exists = (p: string): Promise<boolean> =>
+      fs.access(p).then(
+        () => true,
+        () => false
+      )
+    const board = repo.getAll().boards.find((b) => b.id === card.boardId)
+    const notHere = board?.shared
+      ? 'Esse arquivo ainda não subiu para a nuvem: está só no PC de quem anexou. Quando o Focus HUB abrir lá, ele sobe sozinho.'
+      : 'Não deu para abrir: o arquivo pode ter sido movido ou apagado.'
+
+    if (attachmentId && wanted[0].localPath && !wanted[0].storagePath) {
+      if (!(await exists(wanted[0].localPath))) return { ok: false, error: notHere }
       const err = await shell.openPath(wanted[0].localPath)
-      return err
-        ? { ok: false, error: 'Não deu para abrir: o arquivo pode ter sido movido ou apagado.' }
-        : { ok: true }
+      return err ? { ok: false, error: notHere } : { ok: true }
     }
 
     const folder = join(app.getPath('downloads'), 'Focus HUB', folderNameOf(card.title))
     await fs.mkdir(folder, { recursive: true })
+    const missing: string[] = []
     for (const a of wanted) {
       const target = join(folder, fileNameOf(a.name))
       if (a.storagePath) {
@@ -306,10 +321,22 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
         if (!res.ok || !res.bytes) return { ok: false, error: res.error }
         await fs.writeFile(target, res.bytes)
       } else if (a.localPath) {
-        await fs.copyFile(a.localPath, target).catch(() => undefined)
+        const copied = await fs.copyFile(a.localPath, target).then(
+          () => true,
+          () => false
+        )
+        if (!copied) missing.push(a.name)
       }
     }
+    if (missing.length === wanted.length) return { ok: false, error: notHere }
     await shell.openPath(folder)
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        folder,
+        error: `${missing.length} de ${wanted.length} não vieram. ${notHere}`
+      }
+    }
     return { ok: true, folder }
   })
 
