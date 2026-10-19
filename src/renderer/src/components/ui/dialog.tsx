@@ -10,7 +10,7 @@ export const DialogClose = DialogPrimitive.Close
 export const DialogContent = forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean }
->(({ className, children, hideClose, ...props }, ref) => (
+>(({ className, children, hideClose, onInteractOutside, ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-fade-in" />
     <DialogPrimitive.Content
@@ -19,6 +19,13 @@ export const DialogContent = forwardRef<
         'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface-elevated p-6 shadow-elevated data-[state=open]:animate-scale-in focus:outline-none scrollbar-thin',
         className
       )}
+      // The window's own buttons sit above every dialog. Using them — say,
+      // minimising mid-edit — is not a click away from the dialog.
+      onInteractOutside={(e) => {
+        const target = (e.detail.originalEvent.target ?? e.target) as Element | null
+        if (target?.closest?.('[data-titlebar]')) e.preventDefault()
+        else onInteractOutside?.(e)
+      }}
       {...props}
     >
       {children}

@@ -54,8 +54,16 @@ export function TitleBar(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /*
+    Above a dialog's backdrop (z-50) and clickable through it: Radix turns off
+    pointer events on the page while a dialog is open, which left no way to
+    minimise, maximise or close the window from inside a card.
+  */
   return (
-    <div className="drag flex h-10 shrink-0 items-center justify-between pl-4 pr-2">
+    <div
+      data-titlebar
+      className="drag pointer-events-auto relative z-[55] flex h-10 shrink-0 items-center justify-between pl-4 pr-2"
+    >
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-glow" />
         Focus HUB

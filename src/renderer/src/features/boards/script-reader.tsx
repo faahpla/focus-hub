@@ -77,7 +77,8 @@ export function ScriptReader({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-[60] flex flex-col bg-background"
+      // Below the title bar, so the window buttons stay reachable while reading.
+      className="fixed inset-x-0 bottom-0 top-10 z-[60] flex flex-col bg-background"
     >
       <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-3">
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{title}</p>

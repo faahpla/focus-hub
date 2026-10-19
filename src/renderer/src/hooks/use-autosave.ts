@@ -18,6 +18,30 @@ export function useAutosavedText(
 ): [string, (next: string) => void, () => void] {
   const [text, setText] = useState(saved)
 
+  /*
+    Follow changes that come from elsewhere — the other person on a shared
+    board, or the same card open in the reader.
+
+    Without this the box held on to what it showed when it opened: the store
+    moved on, the box now "differed" from it, and the debounce below wrote the
+    old text straight back over the new one. Someone with the card merely open
+    undid every edit made from the other PC.
+
+    `base` is the stored value the box was last in step with. If the box still
+    shows it, nothing was typed here, so the new value is taken. If it shows
+    something else, there is typing in progress, and that keeps going — the
+    two people were editing the same field at the same moment.
+  */
+  const base = useRef(saved)
+  useEffect(() => {
+    if (saved === base.current) return
+    const untouched = text === base.current
+    base.current = saved
+    if (untouched) setText(saved)
+    // Only a change to the stored value matters here, not each keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved])
+
   // Keep the latest values reachable from listeners registered once.
   const textRef = useRef(text)
   const savedRef = useRef(saved)
