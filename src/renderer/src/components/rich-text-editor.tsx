@@ -38,16 +38,23 @@ export function RichTextEditor({
   placeholder,
   autoFocus,
   className,
-  style
+  contentClassName,
+  style,
+  boxRef
 }: {
   /** Stored value: the editor's HTML, or plain text from before formatting. */
   value: string
   onChange: (html: string) => void
   onBlur?: () => void
   placeholder?: string
-  autoFocus?: boolean
+  /** Focus on mount, with the caret at the end — or at the start, for reading. */
+  autoFocus?: boolean | 'start'
   className?: string
+  /** On the text column inside the box, when the box is wider than the text. */
+  contentClassName?: string
   style?: React.CSSProperties
+  /** The scrolling box, for callers that scroll it themselves (the reader). */
+  boxRef?: (el: HTMLDivElement | null) => void
 }): JSX.Element {
   // What this editor last handed out, so its own echo is not loaded back in
   // (that would reset the caret on every keystroke).
@@ -73,7 +80,7 @@ export function RichTextEditor({
     // Keep runs of spaces as typed; the default squeezes them into one, which
     // would quietly rewrite indented lines the first time a text is edited.
     parseOptions: { preserveWhitespace: 'full' },
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: autoFocus === 'start' ? 'start' : autoFocus ? 'end' : false,
     editorProps: {
       attributes: { class: 'rich-text no-drag focus:outline-none' },
       /*
@@ -115,7 +122,10 @@ export function RichTextEditor({
 
   return (
     <div
-      ref={setBox}
+      ref={(el) => {
+        setBox(el)
+        boxRef?.(el)
+      }}
       className={cn('cursor-text', className)}
       style={style}
       // A click in the empty space below the text lands at its end.
@@ -126,7 +136,7 @@ export function RichTextEditor({
       }}
     >
       {editor && box && <FormatMenu editor={editor} scrollTarget={box} />}
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className={contentClassName} />
     </div>
   )
 }

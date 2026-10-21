@@ -43,6 +43,8 @@ const FONTS = ['Inter', 'system-ui', 'Segoe UI', 'JetBrains Mono']
 export function SettingsPage(): JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const saveSettings = useAppStore((s) => s.saveSettings)
+  const planner = useAppStore((s) => s.planner)
+  const savePlannerSettings = useAppStore((s) => s.savePlannerSettings)
   const hydrate = useAppStore((s) => s.hydrate)
   const pushToast = useToastStore((s) => s.push)
   const [appInfo, setAppInfo] = useState<{
@@ -190,6 +192,34 @@ export function SettingsPage(): JSX.Element {
               Ctrl + Shift + Space
             </kbd>
           </Row>
+        </Section>
+
+        {/* What the home screen shows besides the deliveries. */}
+        <Section title="Tela inicial">
+          <ToggleRow
+            label="Hábitos"
+            desc="Os hábitos do dia para marcar."
+            checked={planner.showHabitsOnToday}
+            onChange={(v) => void savePlannerSettings({ showHabitsOnToday: v })}
+          />
+          <ToggleRow
+            label="Resumo financeiro"
+            desc="Saldo, gastos do mês e contas vencendo."
+            checked={planner.showFinanceOnToday}
+            onChange={(v) => void savePlannerSettings({ showFinanceOnToday: v })}
+          />
+          <ToggleRow
+            label="Capacidade do dia"
+            desc="Quanto do dia as tarefas já ocupam. Só aparece quando há tarefas."
+            checked={planner.showCapacityOnToday}
+            onChange={(v) => void savePlannerSettings({ showCapacityOnToday: v })}
+          />
+          <ToggleRow
+            label="Timer de foco"
+            desc="O timer completo. Um foco rodando já aparece no topo e na barra da janela."
+            checked={planner.showTimerOnToday}
+            onChange={(v) => void savePlannerSettings({ showTimerOnToday: v })}
+          />
         </Section>
 
         {/* Flow — global, applies to every session */}

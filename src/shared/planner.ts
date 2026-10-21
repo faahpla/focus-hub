@@ -148,6 +148,16 @@ export interface PlannerSettings {
   autoRollover: boolean
   showHabitsOnToday: boolean
   showFinanceOnToday: boolean
+  /** The day's capacity bar on the home screen. Off unless the day is planned in tasks. */
+  showCapacityOnToday: boolean
+  /** The full focus timer on the home screen; the title bar already shows a running one. */
+  showTimerOnToday: boolean
+  /**
+   * Set once the home screen moved to deliveries first. The move hid the
+   * finance summary for people who had it, so it happens one time only and
+   * the switch in Ajustes keeps working afterwards.
+   */
+  homeV2?: boolean
   /** Warn when the plan exceeds the hours actually available. */
   capacityWarnings: boolean
 }
@@ -163,6 +173,8 @@ export const DEFAULT_PLANNER_SETTINGS: PlannerSettings = {
   autoRollover: true,
   showHabitsOnToday: true,
   showFinanceOnToday: true,
+  showCapacityOnToday: false,
+  showTimerOnToday: false,
   capacityWarnings: true
 }
 

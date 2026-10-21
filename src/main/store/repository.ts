@@ -277,6 +277,12 @@ export class Repository {
       }
     }
     const planner = { ...DEFAULT_PLANNER_SETTINGS, ...(data.planner ?? {}) }
+    // The deliveries-first home leaves the finance summary out; once, so the
+    // switch in Ajustes can bring it back for good.
+    if (!planner.homeV2) {
+      planner.showFinanceOnToday = false
+      planner.homeV2 = true
+    }
     if (JSON.stringify(planner) !== JSON.stringify(data.planner)) {
       data.planner = planner
       changed = true

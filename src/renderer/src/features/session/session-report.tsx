@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, animate, motion } from 'framer-motion'
 import {
   ArrowUpRight,
+  Check,
   CheckCircle2,
   Flame,
   ListChecks,
@@ -32,6 +33,7 @@ function CountUp({ value, duration = 1.1 }: { value: number; duration?: number }
 export function SessionReportOverlay(): JSX.Element {
   const report = useSessionStore((s) => s.report)
   const dismissReport = useSessionStore((s) => s.dismissReport)
+  const completeStep = useSessionStore((s) => s.completeStep)
 
   return (
     <AnimatePresence>
@@ -116,6 +118,27 @@ export function SessionReportOverlay(): JSX.Element {
                 {formatDuration(report.focusedSeconds)}
               </p>
             </div>
+
+            {/* The card step this session was for: ask, then tick it. */}
+            {report.step && (
+              <div className="mx-6 mb-4 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3">
+                {report.step.done ? (
+                  <p className="flex items-center gap-2 text-sm font-medium text-success">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {report.step.label} marcada como feita
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <p className="min-w-0 flex-1 text-sm">
+                      Terminou <span className="font-semibold">{report.step.label}</span>?
+                    </p>
+                    <Button size="sm" variant="primary" onClick={completeStep}>
+                      <Check className="h-3.5 w-3.5" /> Sim, marcar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Level up banner */}
             <AnimatePresence>

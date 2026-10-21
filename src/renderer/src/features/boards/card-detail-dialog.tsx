@@ -45,7 +45,7 @@ import { useAppStore } from '@/stores/app-store'
 import { useSyncStore } from '@/stores/sync-store'
 import { peopleOf, personOf } from '@/features/sharing/people'
 import { PersonAvatar, PersonChip } from '@/features/sharing/person-badge'
-import { useSessionStore } from '@/stores/session-store'
+import { focusOnCard } from '@/features/session/focus-card'
 import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
@@ -159,9 +159,6 @@ function CardEditor({
 }): JSX.Element {
   const cardId = card.id
   const saveCard = useAppStore((s) => s.saveCard)
-  const projects = useAppStore((s) => s.projects)
-  const defaultMinutes = useAppStore((s) => s.settings.defaultDurationMinutes)
-  const configure = useSessionStore((s) => s.configure)
   const navigate = useNavigate()
   const deleteCard = useAppStore((s) => s.deleteCard)
 
@@ -183,12 +180,9 @@ function CardEditor({
   const dropped = isCardCancelled(card, board.columns)
 
   /** Take this card into a focus session — the card *is* the work. */
-  const focusOnCard = (): void => {
-    configure({
-      project: projects.find((p) => p.id === board.projectId),
-      card,
-      minutes: card.durationMinutes ?? defaultMinutes
-    })
+  const focusHere = (): void => {
+    // On the next open step, so the report can ask whether it got done.
+    if (!focusOnCard(card)) return
     onClose()
     navigate('/foco')
   }
@@ -580,7 +574,7 @@ function CardEditor({
                       </span>
                     )}
                   </p>
-                  <Button size="sm" variant="secondary" onClick={focusOnCard} className="h-7">
+                  <Button size="sm" variant="secondary" onClick={focusHere} className="h-7">
                     <Play className="h-3.5 w-3.5" /> Focar
                   </Button>
                 </div>

@@ -9,7 +9,7 @@ import {
   Flame,
   Inbox,
   Plus,
-  KanbanSquare,
+  Search,
   Sparkles,
   Target
 } from 'lucide-react'
@@ -22,16 +22,19 @@ import { useAppStore } from '@/stores/app-store'
 import { useToastStore } from '@/stores/toast-store'
 import { usePlannerUi } from '@/stores/planner-ui-store'
 import { useSessionStore } from '@/stores/session-store'
+import { useNavigatorStore } from '@/stores/navigator-store'
 import { uid } from '@/lib/utils'
-import type { BoardCard, Task } from '@shared/types'
+import type { Task } from '@shared/types'
 import { TaskDetailDialog } from '@/features/projects/task-detail-dialog'
-import { CardDetailDialog } from '@/features/boards/card-detail-dialog'
 import { HomeFinanceCard } from '@/features/finance/components/home-finance-card'
-import { NowBar } from '../components/now-bar'
+import { deliveries } from '@/features/boards/card-flow'
 import { CapacityBar } from '../components/capacity-bar'
 import { HabitStrip } from '../components/habit-strip'
 import { TaskRow } from '../components/task-row'
 import { TimerPanel } from '../components/timer-panel'
+import { NextDelivery, useHeroCardId } from '../components/next-delivery'
+import { DeliveriesList } from '../components/deliveries-list'
+import { ProductionPulse } from '../components/production-pulse'
 import { useCapacity, useDayTasks, useRollover } from '../hooks/use-planner'
 import { applyPlan, planDay, taskDuration } from '../services/scheduler'
 import { goalProgress, leadGoal } from '../services/goals-service'
@@ -49,6 +52,11 @@ function greeting(): string {
 /**
  * The screen the app opens on, built to answer one question before the user
  * has to click anything: what do I need to do now?
+ *
+ * The work lives on the boards, so the deliveries lead: the next one with the
+ * button that starts focusing on it, then the rest of the week, then what is
+ * in each stage. Tasks, appointments, habits and goals still show — when
+ * there is something in them. An empty block is only noise.
  */
 export function TodayPage(): JSX.Element {
   const day = today()
@@ -56,18 +64,20 @@ export function TodayPage(): JSX.Element {
   const tasks = useAppStore((s) => s.tasks)
   const events = useAppStore((s) => s.events)
   const projects = useAppStore((s) => s.projects)
+  const cards = useAppStore((s) => s.cards)
+  const boards = useAppStore((s) => s.boards)
   const settings = useAppStore((s) => s.planner)
   const saveTask = useAppStore((s) => s.saveTask)
   const saveTasks = useAppStore((s) => s.saveTasks)
   const pushToast = useToastStore((s) => s.push)
   const setDay = usePlannerUi((s) => s.setDay)
+  const setSearchOpen = useNavigatorStore((s) => s.setSearchOpen)
   const session = useSessionStore()
+  const heroCardId = useHeroCardId()
 
-  const cards = useAppStore((s) => s.cards)
-  const boards = useAppStore((s) => s.boards)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
-  const [openCard, setOpenCard] = useState<BoardCard | null>(null)
   const [draft, setDraft] = useState('')
+  const [adding, setAdding] = useState(false)
 
   useRollover()
 
@@ -85,20 +95,23 @@ export function TodayPage(): JSX.Element {
     [events, day]
   )
 
-  // Cards delivering today — the deliverable itself, not just its steps.
-  const dayCards = useMemo(
-    () =>
-      cards
-        .filter((c) => c.dueDate === day)
-        .sort((a, b) => (a.dueTime ?? '99:99').localeCompare(b.dueTime ?? '99:99')),
-    [cards, day]
-  )
-  const openCardBoard = openCard ? boards.find((b) => b.id === openCard.boardId) : undefined
+  const due = useMemo(() => deliveries(cards, boards), [cards, boards])
+  const dueToday = due.filter((d) => d.daysLeft === 0).length
+  const late = due.filter((d) => d.daysLeft < 0).length
 
   const goal = useMemo(() => leadGoal(data, day), [data, day])
   const goalStats = goal ? goalProgress(goal, data, day) : undefined
 
   const progress = dayTasks.length > 0 ? done.length / dayTasks.length : 0
+
+  const summary = [
+    `${weekdayLong(day)}, ${dayLabel(day)}`,
+    dueToday > 0 && `${dueToday} entrega${dueToday === 1 ? '' : 's'} hoje`,
+    late > 0 && `${late} atrasada${late === 1 ? '' : 's'}`,
+    pending.length > 0 && `${pending.length} tarefa${pending.length === 1 ? '' : 's'}`,
+    todayEvents.length > 0 &&
+      `${todayEvents.length} compromisso${todayEvents.length === 1 ? '' : 's'}`
+  ].filter(Boolean)
 
   const organize = (): void => {
     const plan = planDay({ day, tasks, events, settings, notBefore: nowClock() })
@@ -154,6 +167,8 @@ export function TodayPage(): JSX.Element {
     navigate('/agenda')
   }
 
+  const hasTasks = dayTasks.length > 0
+
   return (
     <div className="flex h-full">
       <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
@@ -162,144 +177,100 @@ export function TodayPage(): JSX.Element {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{greeting()}, FAAH.</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {weekdayLong(day)}, {dayLabel(day)} ·{' '}
-                {pending.length === 0
-                  ? 'nada pendente'
-                  : `${pending.length} pendente${pending.length === 1 ? '' : 's'}`}
-                {dayCards.length > 0 && ` · ${dayCards.length} entrega(s)`}
-                {todayEvents.length > 0 && ` · ${todayEvents.length} compromisso(s)`}
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{summary.join(' · ')}</p>
             </div>
             <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setSearchOpen(true)}>
+                <Search className="h-4 w-4" /> Buscar
+                <kbd className="ml-1 rounded border border-border px-1 text-[10px] text-muted-foreground">
+                  Ctrl K
+                </kbd>
+              </Button>
               <Button variant="secondary" onClick={openAgenda}>
                 <CalendarDays className="h-4 w-4" /> Agenda
               </Button>
-              <Button variant="primary" onClick={organize} disabled={pending.length === 0}>
-                <Sparkles className="h-4 w-4" /> Organizar meu dia
-              </Button>
+              {pending.length > 0 && (
+                <Button variant="secondary" onClick={organize}>
+                  <Sparkles className="h-4 w-4" /> Organizar tarefas
+                </Button>
+              )}
             </div>
           </div>
 
-          <NowBar
-            day={day}
-            onOpenTask={(t) => setOpenTaskId(t.id)}
-            onOpenCard={setOpenCard}
-          />
+          <NextDelivery />
 
           <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
             <div className="space-y-4">
-              {/* Quick add */}
-              <div className="relative">
-                <Plus className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={draft}
-                  placeholder="O que mais precisa acontecer hoje?"
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
-                  className="pl-10"
-                />
-              </div>
+              <DeliveriesList skipId={heroCardId} />
 
-              {/* Timed blocks */}
-              {timed.length > 0 && (
-                <Card className="p-4">
-                  <div className="mb-2 flex items-center gap-2 px-1">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <h3 className="text-xs font-semibold text-muted-foreground">Com horário</h3>
-                  </div>
-                  <AnimatePresence initial={false}>
-                    {timed.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onOpen={(t) => setOpenTaskId(t.id)}
-                        onStart={startSession}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </Card>
-              )}
-
-              {/* Loose tasks */}
-              <Card className="p-4">
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
-                    <h3 className="text-xs font-semibold text-muted-foreground">
-                      {timed.length > 0 ? 'Sem horário definido' : 'Para hoje'}
-                    </h3>
-                  </div>
-                  {loose.length > 0 && (
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatMinutes(
-                        loose.reduce((sum, t) => sum + taskDuration(t, settings), 0)
-                      )}
-                    </span>
-                  )}
-                </div>
-
-                {loose.length === 0 && timed.length === 0 ? (
-                  <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-                    Nada planejado ainda. Escreva ali em cima e aperte Enter.
-                  </p>
-                ) : loose.length === 0 ? (
-                  <p className="px-1 py-3 text-center text-xs text-muted-foreground">
-                    Tudo com horário definido.
-                  </p>
-                ) : (
-                  <AnimatePresence initial={false}>
-                    {loose.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onOpen={(t) => setOpenTaskId(t.id)}
-                        onStart={startSession}
-                      />
-                    ))}
-                  </AnimatePresence>
-                )}
-              </Card>
-
-              {/* Cards delivering today */}
-              {dayCards.length > 0 && (
-                <Card className="p-4">
-                  <div className="mb-2 flex items-center gap-2 px-1">
-                    <KanbanSquare className="h-3.5 w-3.5 text-primary" />
-                    <h3 className="text-xs font-semibold text-muted-foreground">
-                      Entregas de hoje
-                    </h3>
-                  </div>
-                  <div className="space-y-1">
-                    {dayCards.map((card) => {
-                      const board = boards.find((b) => b.id === card.boardId)
-                      const steps = tasks.filter((t) => t.cardId === card.id)
-                      const stepsDone = steps.filter((t) => t.status === 'done').length
-                      return (
-                        <button
-                          key={card.id}
-                          onClick={() => setOpenCard(card)}
-                          className="no-drag flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
-                        >
-                          <span
-                            className="h-8 w-[3px] shrink-0 rounded-full"
-                            style={{ background: `hsl(${board?.color ?? '270 80% 66%'})` }}
+              {/* Tasks: a block only when there are some; otherwise one line to add. */}
+              {hasTasks ? (
+                <>
+                  {timed.length > 0 && (
+                    <Card className="p-4">
+                      <div className="mb-2 flex items-center gap-2 px-1">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <h3 className="text-xs font-semibold text-muted-foreground">
+                          Tarefas com horário
+                        </h3>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {timed.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            onOpen={(t) => setOpenTaskId(t.id)}
+                            onStart={startSession}
                           />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{card.title}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                              {board?.name ?? 'Quadro'}
-                              {steps.length > 0 && ` · ${stepsDone}/${steps.length} etapas`}
-                            </p>
-                          </div>
-                          <span className="shrink-0 text-xs tabular text-muted-foreground">
-                            {card.dueTime ?? 'sem hora'}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </Card>
+                        ))}
+                      </AnimatePresence>
+                    </Card>
+                  )}
+
+                  <Card className="p-4">
+                    <div className="mb-2 flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
+                        <h3 className="text-xs font-semibold text-muted-foreground">
+                          Tarefas de hoje
+                        </h3>
+                      </div>
+                      {loose.length > 0 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatMinutes(
+                            loose.reduce((sum, t) => sum + taskDuration(t, settings), 0)
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <AnimatePresence initial={false}>
+                      {loose.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          onOpen={(t) => setOpenTaskId(t.id)}
+                          onStart={startSession}
+                        />
+                      ))}
+                    </AnimatePresence>
+                    <QuickAdd draft={draft} setDraft={setDraft} onAdd={quickAdd} />
+                  </Card>
+                </>
+              ) : adding ? (
+                <QuickAdd
+                  draft={draft}
+                  setDraft={setDraft}
+                  onAdd={quickAdd}
+                  autoFocus
+                  onBlur={() => !draft.trim() && setAdding(false)}
+                />
+              ) : (
+                <button
+                  onClick={() => setAdding(true)}
+                  className="no-drag flex items-center gap-1.5 px-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Tarefa avulsa para hoje
+                </button>
               )}
 
               {/* Events */}
@@ -355,12 +326,14 @@ export function TodayPage(): JSX.Element {
 
             {/* Right column */}
             <div className="space-y-4">
-              <CapacityBar capacity={capacity} />
+              <ProductionPulse />
 
-              {dayTasks.length > 0 && (
+              {hasTasks && settings.showCapacityOnToday && <CapacityBar capacity={capacity} />}
+
+              {hasTasks && (
                 <div className="rounded-2xl border border-border/70 bg-surface/50 p-4">
                   <div className="mb-2 flex items-baseline justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Progresso</span>
+                    <span className="text-xs font-medium text-muted-foreground">Tarefas</span>
                     <span className="text-xs tabular">
                       {done.length}/{dayTasks.length}
                     </span>
@@ -411,7 +384,7 @@ export function TodayPage(): JSX.Element {
 
               {settings.showFinanceOnToday && <HomeFinanceCard />}
 
-              <TimerPanel />
+              {settings.showTimerOnToday && <TimerPanel />}
             </div>
           </div>
         </div>
@@ -420,13 +393,35 @@ export function TodayPage(): JSX.Element {
       {openTaskId && (
         <TaskDetailDialog taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
       )}
-      {openCard && openCardBoard && (
-        <CardDetailDialog
-          cardId={openCard.id}
-          board={openCardBoard}
-          onClose={() => setOpenCard(null)}
-        />
-      )}
+    </div>
+  )
+}
+
+function QuickAdd({
+  draft,
+  setDraft,
+  onAdd,
+  autoFocus,
+  onBlur
+}: {
+  draft: string
+  setDraft: (v: string) => void
+  onAdd: () => void
+  autoFocus?: boolean
+  onBlur?: () => void
+}): JSX.Element {
+  return (
+    <div className="relative mt-1">
+      <Plus className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        autoFocus={autoFocus}
+        value={draft}
+        placeholder="Tarefa avulsa para hoje — Enter para adicionar"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onAdd()}
+        onBlur={onBlur}
+        className="pl-10"
+      />
     </div>
   )
 }

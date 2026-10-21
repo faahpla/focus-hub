@@ -15,6 +15,8 @@ import { FinancePage } from '@/features/finance/finance-page'
 import { StatsPage } from '@/features/stats/stats-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { QuickCapturePage } from '@/features/quick-capture/quick-capture-page'
+import { CommandPalette } from '@/features/search/command-palette'
+import { CardDialogHost } from '@/features/boards/card-dialog-host'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { useSyncStore } from '@/stores/sync-store'
@@ -92,6 +94,9 @@ function MainApp(): JSX.Element {
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </AppShell>
+      {/* Reach any card from any page: Ctrl+K, and the dialog it opens. */}
+      <CommandPalette />
+      <CardDialogHost />
       <UltraFocusOverlay />
       <SessionReportOverlay />
     </TooltipProvider>

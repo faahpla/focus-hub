@@ -76,6 +76,8 @@ const api: FocusHubApi = {
   toggleMaximize: () => ipcRenderer.send(IPC.WIN_MAXIMIZE),
   close: () => ipcRenderer.send(IPC.WIN_CLOSE),
   setUltraFocus: (enabled: boolean) => ipcRenderer.send(IPC.WIN_ULTRA, enabled),
+  // Same switch as Ultra Focus: full screen on or off, never always-on-top.
+  setFullScreen: (enabled: boolean) => ipcRenderer.send(IPC.WIN_ULTRA, enabled),
 
   saveQuickIdea: (content: string) => ipcRenderer.invoke(IPC.QUICK_CAPTURE_SAVE, content),
   closeQuickCapture: () => ipcRenderer.send(IPC.QUICK_CAPTURE_CLOSE),

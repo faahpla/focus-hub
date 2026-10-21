@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
-import { ArrowDownCircle, Camera, Minus, RefreshCw, ShieldAlert, Square, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ArrowDownCircle,
+  Camera,
+  Minus,
+  Pause,
+  Play,
+  RefreshCw,
+  ShieldAlert,
+  Square,
+  X
+} from 'lucide-react'
 import { useToastStore } from '@/stores/toast-store'
+import { useSessionStore } from '@/stores/session-store'
 import { cn } from '@/lib/utils'
 import type { UpdateStatus } from '@shared/types'
 
@@ -79,6 +91,7 @@ export function TitleBar(): JSX.Element {
         )}
         <UpdatePill />
       </div>
+      <FocusPill />
       <div className="no-drag flex items-center gap-1">
         <WinButton
           onClick={() => void capture()}
@@ -117,6 +130,57 @@ function WinButton({
       )}
       {...props}
     />
+  )
+}
+
+/**
+ * A running focus session, on every screen. The timer used to live only on
+ * the home screen and the focus page, so leaving them made it easy to forget
+ * a session was on — or that focus mode existed at all.
+ */
+function FocusPill(): JSX.Element | null {
+  const navigate = useNavigate()
+  const phase = useSessionStore((s) => s.phase)
+  const title = useSessionStore((s) => s.taskTitle)
+  const togglePause = useSessionStore((s) => s.togglePause)
+  // Whole seconds only: the pill re-renders once a second, not on every tick.
+  const remaining = useSessionStore((s) =>
+    Math.max(0, Math.ceil(s.plannedSeconds - s.focusedSeconds))
+  )
+  if (phase !== 'running' && phase !== 'paused') return null
+
+  const paused = phase === 'paused'
+  const clock = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
+
+  return (
+    <div
+      className={cn(
+        'no-drag absolute left-1/2 flex max-w-[40%] -translate-x-1/2 items-center gap-1 rounded-lg border py-0.5 pl-2 pr-0.5 text-xs',
+        paused
+          ? 'border-border bg-surface-elevated text-muted-foreground'
+          : 'border-primary/40 bg-primary/10 text-primary'
+      )}
+    >
+      <button
+        onClick={() => navigate('/foco')}
+        title="Abrir o modo foco"
+        className="flex min-w-0 items-center gap-2"
+      >
+        <span
+          className={cn('h-1.5 w-1.5 shrink-0 rounded-full', paused ? 'bg-muted-foreground' : 'animate-pulse bg-primary')}
+        />
+        <span className="truncate font-medium">{title}</span>
+        <span className="shrink-0 font-semibold tabular">{paused ? 'pausado' : clock}</span>
+      </button>
+      <button
+        onClick={togglePause}
+        title={paused ? 'Continuar' : 'Pausar'}
+        aria-label={paused ? 'Continuar' : 'Pausar'}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-primary/20"
+      >
+        {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+      </button>
+    </div>
   )
 }
 

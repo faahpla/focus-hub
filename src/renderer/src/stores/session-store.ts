@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { Achievement, BoardCard, FlowApplyResult, Project, Session, Task } from '@shared/types'
+import type {
+  Achievement,
+  BoardCard,
+  ChecklistItem,
+  FlowApplyResult,
+  Project,
+  Session,
+  Task
+} from '@shared/types'
 import { flowIsEmpty, mergeFlow } from '@shared/flow'
 import { uid } from '@/lib/utils'
 import { todayKey } from '@/lib/format'
@@ -22,6 +30,12 @@ export interface SessionReport {
   newAchievements: Achievement[]
   streakDays: number
   sessionsToday: number
+  /**
+   * The card step this session was for. The report asks whether it got
+   * done and ticks it — finishing the timer and finishing the work are two
+   * different things, so it asks instead of assuming.
+   */
+  step?: { cardId: string; stepId: string; label: string; done: boolean }
 }
 
 interface SessionState {
@@ -30,6 +44,9 @@ interface SessionState {
   taskId?: string
   /** Set when focusing a board card — the card is the work, not a task. */
   cardId?: string
+  /** The step of that card being worked on, when there is one. */
+  stepId?: string
+  stepLabel?: string
   taskTitle: string
   plannedSeconds: number
   focusedSeconds: number
@@ -44,6 +61,7 @@ interface SessionState {
     project?: Project
     task?: Task
     card?: BoardCard
+    step?: ChecklistItem
     minutes: number
     taskTitle?: string
   }) => void
@@ -54,6 +72,8 @@ interface SessionState {
   stop: (completed?: boolean) => Promise<void>
   reset: () => void
   dismissReport: () => void
+  /** Tick the report's card step as done. */
+  completeStep: () => void
   setUltraFocus: (v: boolean) => void
   _tick: () => void
 }
@@ -92,13 +112,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   notified: {},
   report: null,
 
-  configure: ({ project, task, card, minutes, taskTitle }) => {
+  configure: ({ project, task, card, step, minutes, taskTitle }) => {
     if (get().phase === 'running') return
     set({
       projectId: project?.id,
       taskId: task?.id,
       cardId: card?.id,
-      taskTitle: taskTitle || task?.title || card?.title || project?.name || 'Sessão de Foco',
+      stepId: card && step ? step.id : undefined,
+      stepLabel: card && step ? step.label : undefined,
+      taskTitle:
+        taskTitle ||
+        task?.title ||
+        (card && step ? `${step.label} · ${card.title}` : card?.title) ||
+        project?.name ||
+        'Sessão de Foco',
       plannedSeconds: Math.round(minutes * 60),
       focusedSeconds: 0,
       phase: 'idle',
@@ -277,7 +304,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             (a) => a.unlockedAt && !unlockedBefore.has(a.id)
           ),
           streakDays: after.streakDays,
-          sessionsToday: today?.sessions ?? 0
+          sessionsToday: today?.sessions ?? 0,
+          step:
+            state.cardId && state.stepId && state.stepLabel
+              ? {
+                  cardId: state.cardId,
+                  stepId: state.stepId,
+                  label: state.stepLabel,
+                  done:
+                    useAppStore
+                      .getState()
+                      .cards.find((c) => c.id === state.cardId)
+                      ?.checklist?.find((c) => c.id === state.stepId)?.done === true
+                }
+              : undefined
         }
       })
     }
@@ -313,6 +353,30 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // whatever the OS wants to draw on top of it.
     get().setUltraFocus(false)
     set({ phase: 'idle', focusedSeconds: 0, notified: {}, report: null })
+  },
+
+  completeStep: () => {
+    const step = get().report?.step
+    if (!step || step.done) return
+    // The freshest card: it may have changed on the other PC during the session.
+    const card = useAppStore.getState().cards.find((c) => c.id === step.cardId)
+    if (!card) return
+    void useAppStore.getState().saveCard({
+      ...card,
+      checklist: (card.checklist ?? []).map((c) => (c.id === step.stepId ? { ...c, done: true } : c))
+    })
+    // The checklist count in the same report moves with it.
+    set((s) =>
+      s.report?.step
+        ? {
+            report: {
+              ...s.report,
+              step: { ...s.report.step, done: true },
+              checklistDone: Math.min(s.report.checklistTotal, s.report.checklistDone + 1)
+            }
+          }
+        : {}
+    )
   },
 
   setUltraFocus: (v) => {

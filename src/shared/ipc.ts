@@ -195,6 +195,8 @@ export interface FocusHubApi {
    */
   captureWindow(): Promise<string | null>
   setUltraFocus(enabled: boolean): void
+  /** The window in or out of full screen, for the script reader. */
+  setFullScreen(enabled: boolean): void
 
   saveQuickIdea(content: string): Promise<void>
   closeQuickCapture(): void
