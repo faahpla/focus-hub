@@ -19,11 +19,12 @@ export const DialogContent = forwardRef<
         'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface-elevated p-6 shadow-elevated data-[state=open]:animate-scale-in focus:outline-none scrollbar-thin',
         className
       )}
-      // The window's own buttons sit above every dialog. Using them — say,
-      // minimising mid-edit — is not a click away from the dialog.
+      // The window's own buttons and the notices sit above every dialog.
+      // Using them — minimising mid-edit, or a notice's "show in folder" —
+      // is not a click away from the dialog.
       onInteractOutside={(e) => {
         const target = (e.detail.originalEvent.target ?? e.target) as Element | null
-        if (target?.closest?.('[data-titlebar]')) e.preventDefault()
+        if (target?.closest?.('[data-titlebar], [data-toasts]')) e.preventDefault()
         else onInteractOutside?.(e)
       }}
       {...props}

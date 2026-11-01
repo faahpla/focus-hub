@@ -90,7 +90,6 @@ export const IPC = {
   WIN_MINIMIZE: 'win:minimize',
   WIN_MAXIMIZE: 'win:maximize',
   WIN_CLOSE: 'win:close',
-  WIN_CAPTURE: 'win:capture',
   WIN_ULTRA: 'win:ultraFocus',
 
   // Shared boards (Supabase)
@@ -112,6 +111,8 @@ export const IPC = {
   ATTACH_PATHS: 'attachments:attachPaths',
   DOWNLOAD_ATTACHMENTS: 'attachments:download',
   REMOVE_ATTACHMENT: 'attachments:remove',
+  TEXT_EXPORT: 'text:export',
+  TEXT_REVEAL: 'text:reveal',
 
   // Quick capture (main -> renderer + renderer -> main)
   QUICK_CAPTURE_SAVE: 'quickCapture:save',
@@ -189,11 +190,6 @@ export interface FocusHubApi {
   minimize(): void
   toggleMaximize(): void
   close(): void
-  /**
-   * Screenshot the app's own window. Goes to the clipboard and to a PNG in
-   * Imagens/Focus HUB. Returns the file path, or null if it could not be saved.
-   */
-  captureWindow(): Promise<string | null>
   setUltraFocus(enabled: boolean): void
   /** The window in or out of full screen, for the script reader. */
   setFullScreen(enabled: boolean): void
@@ -248,4 +244,12 @@ export interface FocusHubApi {
     attachmentId?: string
   ): Promise<SyncResult & { folder?: string }>
   removeAttachment(cardId: string, attachmentId: string): Promise<SyncResult>
+
+  /**
+   * Save text as a .txt in Downloads/Focus HUB/<folder>/<name>.txt. Never
+   * overwrites: a name already there gets " (2)", " (3)"…
+   */
+  exportText(folder: string, name: string, text: string): Promise<{ ok: boolean; path?: string; error?: string }>
+  /** Show an exported file in Explorer. Only paths under Downloads/Focus HUB. */
+  revealExport(path: string): void
 }

@@ -7,10 +7,8 @@ import {
   ChevronDown,
   Clapperboard,
   Copy,
-  Facebook,
+  FileDown,
   FileText,
-  Film,
-  type LucideIcon,
   ListChecks,
   Maximize2,
   MessageSquare,
@@ -54,6 +52,7 @@ import { QuickPicks, byUse } from './quick-picks'
 import { ScriptReader } from './script-reader'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import { copyRichText, toPlainText } from '@/lib/rich-text'
+import { ExportTextButton, exportTextFile } from '@/components/export-text-button'
 import { cn, uid } from '@/lib/utils'
 
 /** Small copy-to-clipboard affordance used next to every publishable field. */
@@ -90,45 +89,6 @@ function CopyButton({
         </>
       )}
     </button>
-  )
-}
-
-/** One network's publish-ready text: label, copy button, box and a character count. */
-function PublishField({
-  icon: Icon,
-  label,
-  value,
-  onChange,
-  onBlur,
-  placeholder
-}: {
-  icon: LucideIcon
-  label: string
-  value: string
-  onChange: (next: string) => void
-  onBlur: () => void
-  placeholder: string
-}): JSX.Element {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-sm font-medium">
-          <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {label}
-        </p>
-        <CopyButton value={value} />
-      </div>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        rows={6}
-        className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-      />
-      {value.trim() && (
-        <p className="mt-1 text-[11px] text-muted-foreground">{value.trim().length} caracteres</p>
-      )}
-    </div>
   )
 }
 
@@ -221,10 +181,6 @@ function CardEditor({
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
   )
-  const [reels, setReels] = useAutosavedText(card.reels ?? '', (next) => patch({ reels: next }))
-  const [facebook, setFacebook] = useAutosavedText(card.facebook ?? '', (next) =>
-    patch({ facebook: next })
-  )
   const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
     patch({ summary: next })
   )
@@ -260,6 +216,28 @@ function CardEditor({
   const current = panes[pane]
   // Counts go by what is read, not by the markup around it.
   const plain = useMemo(() => toPlainText(current.value), [current.value])
+
+  // Exports go to Downloads › Focus HUB › <card title>, beside its downloaded files.
+  const folder = title.trim() || card.title
+
+  /** Every text of the card in one .txt, each under its heading; empty ones left out. */
+  const exportAll = (): void => {
+    const sections: [string, string][] = [
+      ['ROTEIRO', notes],
+      ['RESUMO', summary],
+      ['B-ROLL', bRoll],
+      ['ASSETS', assetsText],
+      ['TIKTOK', publishTitle],
+      ['YOUTUBE', description],
+      ['COMENTÁRIO FIXADO', pinnedComment]
+    ]
+    const body = sections
+      .map(([heading, value]) => [heading, toPlainText(value).trim()] as const)
+      .filter(([, value]) => value)
+      .map(([heading, value]) => `${heading}\n${'-'.repeat(heading.length)}\n${value}`)
+      .join('\n\n')
+    void exportTextFile(folder, 'Card completo', `${folder}\n${'='.repeat(Math.min(folder.length, 60))}\n\n${body}\n`)
+  }
 
   // One line, one entry - see linesToAssets.
   const [assetsText, setAssetsText] = useAutosavedText(
@@ -348,8 +326,15 @@ function CardEditor({
                   dropped && 'decoration-destructive/60'
                 )}
               />
-              <div className="mt-1 shrink-0">
+              <div className="mt-1 flex shrink-0 items-center">
                 <CopyButton value={title.trim()} />
+                <button
+                  onClick={exportAll}
+                  title="Exportar todos os textos do card num .txt só"
+                  className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                >
+                  <FileDown className="h-3 w-3" /> Exportar tudo
+                </button>
               </div>
             </div>
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
@@ -521,6 +506,7 @@ function CardEditor({
                 </div>
                 <div className="flex items-center gap-1">
                   <CopyButton value={current.value} rich />
+                  <ExportTextButton folder={folder} name={pane} value={current.value} />
                   {pane === 'Roteiro' && (
                     <button
                       onClick={() => setReaderOpen(true)}
@@ -613,7 +599,10 @@ function CardEditor({
                       </span>
                     )}
                   </p>
-                  <CopyButton value={assetsText} />
+                  <div className="flex items-center">
+                    <CopyButton value={assetsText} />
+                    <ExportTextButton folder={folder} name="Assets" value={assetsText} />
+                  </div>
                 </div>
                 <textarea
                   value={assetsText}
@@ -632,7 +621,10 @@ function CardEditor({
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
                   </p>
-                  <CopyButton value={publishTitle} />
+                  <div className="flex items-center">
+                    <CopyButton value={publishTitle} />
+                    <ExportTextButton folder={folder} name="TikTok" value={publishTitle} />
+                  </div>
                 </div>
                 <textarea
                   value={publishTitle}
@@ -657,7 +649,10 @@ function CardEditor({
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
                   </p>
-                  <CopyButton value={description} />
+                  <div className="flex items-center">
+                    <CopyButton value={description} />
+                    <ExportTextButton folder={folder} name="YouTube" value={description} />
+                  </div>
                 </div>
                 <textarea
                   value={description}
@@ -670,24 +665,6 @@ function CardEditor({
                 />
               </div>
 
-              {/* The same video, posted on two more networks — each with its own text. */}
-              <PublishField
-                icon={Film}
-                label="Reels"
-                value={reels}
-                onChange={setReels}
-                onBlur={() => reels !== (card.reels ?? '') && patch({ reels })}
-                placeholder="A legenda que vai no Reels…"
-              />
-              <PublishField
-                icon={Facebook}
-                label="Facebook"
-                value={facebook}
-                onChange={setFacebook}
-                onBlur={() => facebook !== (card.facebook ?? '') && patch({ facebook })}
-                placeholder="O texto que vai no Facebook…"
-              />
-
               {/* Pinned comment — written last, pasted somewhere else. */}
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -695,7 +672,10 @@ function CardEditor({
                     <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /> Comentário
                     fixado
                   </p>
-                  <CopyButton value={pinnedComment} />
+                  <div className="flex items-center">
+                    <CopyButton value={pinnedComment} />
+                    <ExportTextButton folder={folder} name="Comentário fixado" value={pinnedComment} />
+                  </div>
                 </div>
                 <textarea
                   value={pinnedComment}

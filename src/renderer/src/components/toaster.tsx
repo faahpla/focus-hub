@@ -22,7 +22,7 @@ export function Toaster(): JSX.Element {
   const dismiss = useToastStore((s) => s.dismiss)
 
   return (
-    <div className="pointer-events-none absolute right-4 top-12 z-[120] flex w-80 flex-col gap-2">
+    <div data-toasts className="pointer-events-none absolute right-4 top-12 z-[120] flex w-80 flex-col gap-2">
       <AnimatePresence>
         {toasts.map((t) => {
           const Icon = ICONS[t.variant]

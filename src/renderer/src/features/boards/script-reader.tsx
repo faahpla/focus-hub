@@ -15,6 +15,7 @@ import { useAutosavedText } from '@/hooks/use-autosave'
 import { cn } from '@/lib/utils'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import { copyRichText, toPlainText } from '@/lib/rich-text'
+import { ExportTextButton } from '@/components/export-text-button'
 
 const FONT_KEY = 'focus-hub:reader-font'
 const SPEED_KEY = 'focus-hub:reader-speed'
@@ -68,13 +69,16 @@ export function ScriptReader({
   value,
   onCommit,
   onClose,
-  rich
+  rich,
+  exportName = 'Roteiro'
 }: {
   title: string
   value: string
   onCommit: (next: string) => void
   onClose: () => void
   rich?: boolean
+  /** The .txt's name when exported from here. */
+  exportName?: string
 }): JSX.Element {
   // Autosaved while you write — a shutdown mid-script must not cost the script.
   const [text, setText, flush] = useAutosavedText(value, onCommit)
@@ -188,7 +192,7 @@ export function ScriptReader({
           // Using the window's buttons is not leaving the reader.
           onInteractOutside={(e) => {
             const target = (e.detail.originalEvent.target ?? e.target) as Element | null
-            if (target?.closest?.('[data-titlebar]')) e.preventDefault()
+            if (target?.closest?.('[data-titlebar], [data-toasts]')) e.preventDefault()
           }}
           aria-describedby={undefined}
           className={cn(
@@ -287,6 +291,12 @@ export function ScriptReader({
                   </>
                 )}
               </button>
+              <ExportTextButton
+                folder={title}
+                name={exportName}
+                value={text}
+                className="h-8 rounded-lg px-2.5 text-xs"
+              />
               <button
                 onClick={() => setFullScreen((f) => !f)}
                 className={cn(tool, 'w-8')}

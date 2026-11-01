@@ -257,6 +257,7 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }): JSX
         {readerOpen && (
           <ScriptReader
             title={task.title}
+            exportName="Descrição"
             value={description}
             onCommit={(next) => {
               setDescription(next)

@@ -72,7 +72,6 @@ const api: FocusHubApi = {
   openPath: (value: string) => ipcRenderer.invoke(IPC.OPEN_PATH, value),
 
   minimize: () => ipcRenderer.send(IPC.WIN_MINIMIZE),
-  captureWindow: () => ipcRenderer.invoke(IPC.WIN_CAPTURE),
   toggleMaximize: () => ipcRenderer.send(IPC.WIN_MAXIMIZE),
   close: () => ipcRenderer.send(IPC.WIN_CLOSE),
   setUltraFocus: (enabled: boolean) => ipcRenderer.send(IPC.WIN_ULTRA, enabled),
@@ -118,7 +117,10 @@ const api: FocusHubApi = {
   downloadAttachments: (cardId, attachmentId) =>
     ipcRenderer.invoke(IPC.DOWNLOAD_ATTACHMENTS, cardId, attachmentId),
   removeAttachment: (cardId, attachmentId) =>
-    ipcRenderer.invoke(IPC.REMOVE_ATTACHMENT, cardId, attachmentId)
+    ipcRenderer.invoke(IPC.REMOVE_ATTACHMENT, cardId, attachmentId),
+
+  exportText: (folder, name, text) => ipcRenderer.invoke(IPC.TEXT_EXPORT, folder, name, text),
+  revealExport: (path) => ipcRenderer.send(IPC.TEXT_REVEAL, path)
 }
 
 function subscribe(channel: string, listener: (...args: unknown[]) => void): () => void {

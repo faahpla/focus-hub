@@ -1,7 +1,7 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, isAbsolute, join, relative } from 'node:path'
 import { IPC } from '../../shared/ipc'
 import type {
   AppData,
@@ -340,6 +340,43 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     return { ok: true, folder }
   })
 
+  // ---- Text export ----
+  /*
+    A card's texts as .txt files, next to the files downloaded from it —
+    Downloads/Focus HUB/<card>/ — so the script, the caption and the audio
+    are one folder away from the video editor. Never overwrites: an earlier
+    export may have been edited by hand since.
+  */
+  const exportsRoot = (): string => join(app.getPath('downloads'), 'Focus HUB')
+
+  ipcMain.handle(IPC.TEXT_EXPORT, async (_e, folder: string, name: string, text: string) => {
+    if (typeof text !== 'string' || typeof name !== 'string') return { ok: false }
+    const dir = join(exportsRoot(), folderNameOf(String(folder ?? '')))
+    try {
+      await fs.mkdir(dir, { recursive: true })
+      const base = fileNameOf(`${name.replace(/\.txt$/i, '')}.txt`).replace(/\.txt$/i, '')
+      const taken = (p: string): Promise<boolean> =>
+        fs.access(p).then(
+          () => true,
+          () => false
+        )
+      let target = join(dir, `${base}.txt`)
+      for (let n = 2; await taken(target); n++) target = join(dir, `${base} (${n}).txt`)
+      // Windows line endings, so Notepad and every editor show the lines.
+      await fs.writeFile(target, text.replace(/\r?\n/g, '\r\n'), 'utf8')
+      return { ok: true, path: target }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Não deu para salvar.' }
+    }
+  })
+
+  ipcMain.on(IPC.TEXT_REVEAL, (_e, path: string) => {
+    // Only what this app exported: the screen must not point Explorer anywhere.
+    const rel = relative(exportsRoot(), String(path ?? ''))
+    if (!rel || rel.startsWith('..') || isAbsolute(rel)) return
+    shell.showItemInFolder(path)
+  })
+
   ipcMain.handle(IPC.REMOVE_ATTACHMENT, async (_e, cardId: string, attachmentId: string) => {
     const card = repo.getAll().cards.find((c) => c.id === cardId)
     const target = card?.attachments?.find((a) => a.id === attachmentId)
@@ -499,30 +536,6 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
   })
   ipcMain.on(IPC.WIN_CLOSE, (e) => fromEvent(e)?.close())
 
-  /*
-    Screenshot the app from inside the app.
-
-    Windows' own capture tools depend on an overlay that, on some machines,
-    never appears while this window has focus — leaving no way to grab a
-    picture of it at all. capturePage() asks the renderer for its own pixels,
-    so it works regardless of what the desktop is doing.
-  */
-  ipcMain.handle(IPC.WIN_CAPTURE, async (e) => {
-    const win = fromEvent(e)
-    if (!win) return null
-    try {
-      const image = await win.webContents.capturePage()
-      clipboard.writeImage(image)
-      const dir = join(app.getPath('pictures'), 'Focus HUB')
-      await fs.mkdir(dir, { recursive: true })
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-      const file = join(dir, `focus-hub-${stamp}.png`)
-      await fs.writeFile(file, image.toPNG())
-      return file
-    } catch {
-      return null
-    }
-  })
   ipcMain.on(IPC.WIN_ULTRA, (e, enabled: boolean) => {
     const win = fromEvent(e)
     if (!win) return
