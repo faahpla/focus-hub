@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell } from '@/components/layout/app-shell'
 import { UltraFocusOverlay } from '@/features/session/ultra-focus-overlay'
@@ -10,7 +10,7 @@ import { AgendaPage } from '@/features/planner/pages/agenda-page'
 import { HabitsPage } from '@/features/planner/pages/habits-page'
 import { ProjectsPage } from '@/features/projects/projects-page'
 import { BoardsPage } from '@/features/boards/boards-page'
-import { IdeasPage } from '@/features/ideas/ideas-page'
+import { BrainPage } from '@/features/brain/brain-page'
 import { FinancePage } from '@/features/finance/finance-page'
 import { StatsPage } from '@/features/stats/stats-page'
 import { SettingsPage } from '@/features/settings/settings-page'
@@ -88,7 +88,9 @@ function MainApp(): JSX.Element {
           <Route path="/foco" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/boards" element={<BoardsPage />} />
-          <Route path="/ideas" element={<IdeasPage />} />
+          <Route path="/brain" element={<BrainPage />} />
+          {/* The Brain took over from the ideas list. */}
+          <Route path="/ideas" element={<Navigate to="/brain" replace />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

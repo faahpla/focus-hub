@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Ban, CircleCheckBig, KanbanSquare, Plus, Search } from 'lucide-react'
+import {
+  ArrowRight,
+  Ban,
+  Brain,
+  CircleCheckBig,
+  FilePlus2,
+  FileText,
+  KanbanSquare,
+  Plus,
+  Search
+} from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAppStore } from '@/stores/app-store'
 import { useBoardsUiStore } from '@/stores/boards-ui-store'
@@ -8,12 +18,16 @@ import { useNavigatorStore } from '@/stores/navigator-store'
 import { canOnBoard, isCardCancelled, isCardDone } from '@/features/boards/board-templates'
 import { deliveries, dueLabel, isLate, searchable } from '@/features/boards/card-flow'
 import { cn, uid } from '@/lib/utils'
-import type { Board, BoardCard } from '@shared/types'
+import type { Board, BoardCard, BrainNote } from '@shared/types'
+import { useBrainUiStore } from '@/stores/brain-ui-store'
+import { noteMatches, snippetOf } from '@/features/brain/brain-links'
 
 type Item =
   | { kind: 'card'; id: string; card: BoardCard; board: Board }
   | { kind: 'board'; id: string; board: Board }
   | { kind: 'create'; id: string; title: string; board: Board }
+  | { kind: 'note'; id: string; note: BrainNote }
+  | { kind: 'new-note'; id: string; title: string }
 
 const MAX_CARDS = 30
 
@@ -52,6 +66,8 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
   const boards = useAppStore((s) => s.boards)
   const saveCard = useAppStore((s) => s.saveCard)
   const openCard = useNavigatorStore((s) => s.openCard)
+  const notes = useAppStore((s) => s.brainNotes)
+  const saveBrainNotes = useAppStore((s) => s.saveBrainNotes)
   const lastBoardId = useBoardsUiStore((s) => s.selectedId)
   const selectBoard = useBoardsUiStore((s) => s.select)
 
@@ -99,6 +115,14 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
       .slice(0, MAX_CARDS)
       .map(({ card, board }) => ({ kind: 'card' as const, id: card.id, card, board }))
 
+    // Brain notes: a match in the title before a match only in the text.
+    const noteHits = notes
+      .filter((n) => noteMatches(n, query))
+      .map((note) => ({ note, inTitle: terms.every((t) => searchable(note.title).includes(t)) }))
+      .sort((a, b) => Number(b.inTitle) - Number(a.inTitle) || b.note.updatedAt.localeCompare(a.note.updatedAt))
+      .slice(0, 12)
+      .map(({ note }) => ({ kind: 'note' as const, id: `note:${note.id}`, note }))
+
     const boardHits = boards
       .filter((b) => matches(b.name))
       .map((board) => ({ kind: 'board' as const, id: `board:${board.id}`, board }))
@@ -112,8 +136,10 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
       ? [{ kind: 'create', id: 'create', title: query.trim(), board: target }]
       : []
 
-    return [...found, ...boardHits, ...create]
-  }, [query, cards, boards, lastBoardId])
+    const newNote: Item[] = [{ kind: 'new-note', id: 'new-note', title: query.trim() }]
+
+    return [...found, ...noteHits, ...boardHits, ...create, ...newNote]
+  }, [query, cards, boards, notes, lastBoardId])
 
   useEffect(() => setActive(0), [query])
 
@@ -129,6 +155,17 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
     onDone()
     if (item.kind === 'card') {
       openCard(item.card.id)
+    } else if (item.kind === 'note') {
+      useBrainUiStore.getState().setSearch('')
+      useBrainUiStore.getState().select(item.note.id)
+      navigate('/brain')
+    } else if (item.kind === 'new-note') {
+      const stamp = new Date().toISOString()
+      const id = uid()
+      void saveBrainNotes([{ id, title: item.title, body: '', topics: [], createdAt: stamp, updatedAt: stamp }])
+      useBrainUiStore.getState().setSearch('')
+      useBrainUiStore.getState().select(id)
+      navigate('/brain')
     } else if (item.kind === 'board') {
       selectBoard(item.board.id)
       navigate('/boards')
@@ -177,7 +214,7 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar card ou quadro…"
+          placeholder="Buscar card, nota ou quadro…"
           className="no-drag h-12 min-w-0 flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none"
         />
         <kbd className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -222,6 +259,32 @@ function Palette({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 function Row({ item }: { item: Item }): JSX.Element {
+  if (item.kind === 'note') {
+    const snippet = snippetOf(item.note.body, 90)
+    return (
+      <>
+        <FileText className="h-4 w-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm">{item.note.title || 'Sem título'}</p>
+          {snippet && <p className="truncate text-[11px] text-muted-foreground">{snippet}</p>}
+        </div>
+        <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+          <Brain className="h-3 w-3" /> Brain
+        </span>
+      </>
+    )
+  }
+  if (item.kind === 'new-note') {
+    return (
+      <>
+        <FilePlus2 className="h-4 w-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate text-sm">
+          Nova nota <span className="font-medium">“{item.title}”</span>
+        </span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">Brain</span>
+      </>
+    )
+  }
   if (item.kind === 'board') {
     return (
       <>

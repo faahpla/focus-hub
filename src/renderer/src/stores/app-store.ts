@@ -3,6 +3,8 @@ import type {
   AppData,
   Board,
   BoardCard,
+  BrainNote,
+  BrainTopic,
   Idea,
   Project,
   Session,
@@ -33,6 +35,9 @@ interface AppState extends AppData {
   deleteTask: (id: string) => Promise<void>
   saveIdea: (idea: Idea) => Promise<void>
   deleteIdea: (id: string) => Promise<void>
+  saveBrainNotes: (notes: BrainNote[]) => Promise<void>
+  deleteBrainNote: (id: string) => Promise<void>
+  saveBrainTopics: (topics: BrainTopic[]) => Promise<void>
   saveBoard: (board: Board) => Promise<void>
   deleteBoard: (id: string) => Promise<void>
   saveCard: (card: BoardCard) => Promise<void>
@@ -101,7 +106,9 @@ const EMPTY: AppData = {
   events: [],
   habits: [],
   plannerGoals: [],
-  planner: { ...DEFAULT_PLANNER_SETTINGS }
+  planner: { ...DEFAULT_PLANNER_SETTINGS },
+  brainNotes: [],
+  brainTopics: []
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -123,6 +130,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteTask: async (id) => set({ ...(await window.focusHub.deleteTask(id)) }),
   saveIdea: async (idea) => set({ ...(await window.focusHub.saveIdea(idea)) }),
   deleteIdea: async (id) => set({ ...(await window.focusHub.deleteIdea(id)) }),
+  saveBrainNotes: async (notes) => set({ ...(await window.focusHub.saveBrainNotes(notes)) }),
+  deleteBrainNote: async (id) => set({ ...(await window.focusHub.deleteBrainNote(id)) }),
+  saveBrainTopics: async (topics) => set({ ...(await window.focusHub.saveBrainTopics(topics)) }),
   saveBoard: async (board) => set({ ...(await window.focusHub.saveBoard(board)) }),
   deleteBoard: async (id) => set({ ...(await window.focusHub.deleteBoard(id)) }),
   saveCard: async (card) => set({ ...(await window.focusHub.saveCard(card)) }),

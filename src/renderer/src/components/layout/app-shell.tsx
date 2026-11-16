@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { TitleBar } from './title-bar'
 import { Sidebar } from './sidebar'
 import { QuickCaptureButton } from '@/features/quick-capture/quick-capture-button'
@@ -7,6 +8,8 @@ import { Toaster } from '@/components/toaster'
 
 export function AppShell({ children }: { children: React.ReactNode }): JSX.Element {
   const dragBoundsRef = useRef<HTMLDivElement>(null)
+  // The Brain has its own "+ Nota", and the floating button sat over the text.
+  const inBrain = useLocation().pathname.startsWith('/brain')
   return (
     <div
       ref={dragBoundsRef}
@@ -19,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
         <Sidebar />
         <main className="relative min-w-0 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
       </div>
-      <QuickCaptureButton />
+      {!inBrain && <QuickCaptureButton />}
       <YoutubePlayer dragBoundsRef={dragBoundsRef} />
       <Toaster />
     </div>

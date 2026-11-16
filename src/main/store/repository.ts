@@ -5,6 +5,8 @@ import type {
   Board,
   BoardCard,
   Idea,
+  BrainNote,
+  BrainTopic,
   Project,
   Session,
   Settings,
@@ -22,6 +24,7 @@ import { DEFAULT_FINANCE_SETTINGS, SEED_CATEGORIES, emptyFinanceData } from '../
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import { DEFAULT_PLANNER_SETTINGS } from '../../shared/planner'
 import { emptyFlow } from '../../shared/flow'
+import { noteFromText } from '../../shared/brain'
 
 /** The steps a video actually goes through — offered as one-click chips. */
 const DEFAULT_STEP_PRESETS = ['Roteiro', 'Gravação', 'Edição', 'Thumb', 'Publicar']
@@ -139,7 +142,9 @@ function defaultData(): AppData {
     events: [],
     habits: [],
     plannerGoals: [],
-    planner: { ...DEFAULT_PLANNER_SETTINGS }
+    planner: { ...DEFAULT_PLANNER_SETTINGS },
+    brainNotes: [],
+    brainTopics: []
   }
 }
 
@@ -270,11 +275,19 @@ export class Repository {
       }
     }
     // Focus Planner.
-    for (const key of ['events', 'habits', 'plannerGoals'] as const) {
+    for (const key of ['events', 'habits', 'plannerGoals', 'brainNotes', 'brainTopics'] as const) {
       if (!Array.isArray(data[key])) {
         ;(data[key] as unknown[]) = []
         changed = true
       }
+    }
+    // The Brain took over from the old ideas list: each idea comes into its
+    // inbox once. The ideas themselves are left where they were.
+    const brought = new Set(data.brainNotes.map((n) => n.fromIdeaId).filter(Boolean))
+    for (const idea of data.ideas) {
+      if (idea.archived || brought.has(idea.id) || !idea.content.trim()) continue
+      data.brainNotes.push(noteFromText(idea.content, idea.createdAt, { fromIdeaId: idea.id }))
+      changed = true
     }
     const planner = { ...DEFAULT_PLANNER_SETTINGS, ...(data.planner ?? {}) }
     // The deliveries-first home leaves the finance summary out; once, so the
@@ -630,6 +643,36 @@ export class Repository {
   deleteIdea(id: string): AppData {
     const data = this.getAll()
     data.ideas = data.ideas.filter((i) => i.id !== id)
+    return this.setAll(data)
+  }
+
+  /**
+   * Upsert notes as given. The screen stamps updatedAt on a real edit; an
+   * import keeps the dates of what it brought in, so the list order holds.
+   */
+  saveBrainNotes(notes: BrainNote[]): AppData {
+    const data = this.getAll()
+    const byId = new Map(data.brainNotes.map((n) => [n.id, n]))
+    for (const note of notes) byId.set(note.id, note)
+    data.brainNotes = Array.from(byId.values())
+    return this.setAll(data)
+  }
+
+  deleteBrainNote(id: string): AppData {
+    const data = this.getAll()
+    data.brainNotes = data.brainNotes.filter((n) => n.id !== id)
+    return this.setAll(data)
+  }
+
+  /** The whole topic list at once: it is short and edited as a list. */
+  saveBrainTopics(topics: BrainTopic[]): AppData {
+    const data = this.getAll()
+    data.brainTopics = topics
+    // A note keeps only topics that still exist.
+    const ids = new Set(topics.map((t) => t.id))
+    for (const note of data.brainNotes) {
+      if (note.topics.some((t) => !ids.has(t))) note.topics = note.topics.filter((t) => ids.has(t))
+    }
     return this.setAll(data)
   }
 

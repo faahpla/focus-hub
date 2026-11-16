@@ -186,6 +186,23 @@
     margin: 0.8em 0;
     border-color: hsl(var(--border));
   }
+  /* [[Links]] between Brain notes. Missing ones: dashed, until clicked into being. */
+  .rich-text .wiki-link {
+    cursor: pointer;
+    border-radius: 0.2em;
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    text-decoration-color: hsl(var(--primary) / 0.45);
+    text-underline-offset: 3px;
+  }
+  .rich-text .wiki-link:hover {
+    background: hsl(var(--primary) / 0.12);
+  }
+  .rich-text .wiki-link-missing {
+    color: hsl(var(--muted-foreground));
+    text-decoration-style: dashed;
+    text-decoration-color: hsl(var(--muted-foreground) / 0.6);
+  }
   .rich-text p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     float: left;

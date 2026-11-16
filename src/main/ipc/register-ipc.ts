@@ -7,6 +7,8 @@ import type {
   AppData,
   Board,
   BoardCard,
+  BrainNote,
+  BrainTopic,
   CardAttachment,
   FlowConfig,
   Idea,
@@ -25,6 +27,7 @@ import type {
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from '../../shared/planner'
 import type { SharePermissions, ShareRole } from '../../shared/sync'
 import type { Repository } from '../store/repository'
+import { noteFromText } from '../../shared/brain'
 import type { LocalFile, SyncService } from '../services/sync-service'
 import {
   MAX_ATTACHMENT_BYTES,
@@ -90,6 +93,13 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     guard('antes de excluir tarefa', () => changed(repo.deleteTask(id)))
   )
   ipcMain.handle(IPC.IDEAS_SAVE, (_e, i: Idea) => changed(repo.saveIdea(i)))
+  ipcMain.handle(IPC.BRAIN_SAVE_NOTES, (_e, notes: BrainNote[]) =>
+    changed(repo.saveBrainNotes(notes))
+  )
+  ipcMain.handle(IPC.BRAIN_DELETE_NOTE, (_e, id: string) => changed(repo.deleteBrainNote(id)))
+  ipcMain.handle(IPC.BRAIN_SAVE_TOPICS, (_e, topics: BrainTopic[]) =>
+    changed(repo.saveBrainTopics(topics))
+  )
   ipcMain.handle(IPC.IDEAS_DELETE, (_e, id: string) =>
     guard('antes de excluir ideia', () => changed(repo.deleteIdea(id)))
   )
@@ -552,14 +562,10 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
   })
 
   // ---- Quick capture ----
+  // Captured ideas land in the Brain's inbox, to be sorted later.
   ipcMain.handle(IPC.QUICK_CAPTURE_SAVE, (_e, content: string) => {
-    const idea: Idea = {
-      id: crypto.randomUUID(),
-      content,
-      createdAt: new Date().toISOString(),
-      archived: false
-    }
-    changed(repo.saveIdea(idea))
+    if (typeof content !== 'string' || !content.trim()) return
+    changed(repo.saveBrainNotes([noteFromText(content, new Date().toISOString())]))
   })
   ipcMain.on(IPC.QUICK_CAPTURE_CLOSE, () => windows.closeQuickCapture())
 }

@@ -6,7 +6,7 @@ import {
   FolderKanban,
   Home,
   KanbanSquare,
-  Lightbulb,
+  Brain,
   Settings,
   Wallet
 } from 'lucide-react'
@@ -20,7 +20,7 @@ const NAV = [
   { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
   { to: '/projects', icon: FolderKanban, label: 'Projetos' },
   { to: '/boards', icon: KanbanSquare, label: 'Quadros' },
-  { to: '/ideas', icon: Lightbulb, label: 'Ideias' },
+  { to: '/brain', icon: Brain, label: 'Brain' },
   { to: '/habitos', icon: Flame, label: 'Hábitos e metas' },
   { to: '/finance', icon: Wallet, label: 'Finance HUB' },
   { to: '/stats', icon: BarChart3, label: 'Estatísticas' },

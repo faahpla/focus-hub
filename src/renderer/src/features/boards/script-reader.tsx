@@ -128,27 +128,56 @@ export function ScriptReader({
     near a spoken pace. Measured in lines, so a bigger font still reads at
     the same speed. Fractions of a pixel are carried over between frames —
     scrollTop only moves in whole pixels and slow speeds would never start.
+
+    Scrolling by hand always wins. Moving scrollTop every frame cancels the
+    browser's own smooth scrolling, so the wheel did nothing while the
+    teleprompter ran — you were stuck at its pace. Now any wheel, touchpad
+    or scrollbar movement pauses it, and it picks up again from wherever you
+    left the text once you stop for a moment.
   */
   useEffect(() => {
     if (!scrolling || !scroller) return
     const pxPerSecond = fontSize * LINE_HEIGHT * 0.04 * speed
+    const HAND_PAUSE_MS = 1500
+    let handUntil = 0
+    const byHand = (): void => {
+      handUntil = performance.now() + HAND_PAUSE_MS
+    }
+    // A press on the scroller itself (not the text) is its scrollbar.
+    const onPointerDown = (e: PointerEvent): void => {
+      if (e.target === scroller) byHand()
+    }
+    scroller.addEventListener('wheel', byHand, { passive: true })
+    scroller.addEventListener('touchmove', byHand, { passive: true })
+    scroller.addEventListener('pointerdown', onPointerDown)
+
     let last = performance.now()
     let carry = 0
     let frame = requestAnimationFrame(function step(now) {
-      carry += ((now - last) / 1000) * pxPerSecond
+      if (now < handUntil) {
+        // Hands on: hold still, and start counting again from here.
+        carry = 0
+      } else {
+        carry += ((now - last) / 1000) * pxPerSecond
+        const whole = Math.floor(carry)
+        if (whole > 0) {
+          scroller.scrollTop += whole
+          carry -= whole
+        }
+        if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1) {
+          setScrolling(false)
+          return
+        }
+      }
       last = now
-      const whole = Math.floor(carry)
-      if (whole > 0) {
-        scroller.scrollTop += whole
-        carry -= whole
-      }
-      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1) {
-        setScrolling(false)
-        return
-      }
       frame = requestAnimationFrame(step)
     })
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      scroller.removeEventListener('wheel', byHand)
+      scroller.removeEventListener('touchmove', byHand)
+      scroller.removeEventListener('pointerdown', onPointerDown)
+    }
   }, [scrolling, scroller, speed, fontSize])
 
   const bump = (delta: number): void =>

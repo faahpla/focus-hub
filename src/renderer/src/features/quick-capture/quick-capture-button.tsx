@@ -4,17 +4,18 @@ import { motion } from 'framer-motion'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/input'
 import { useAppStore } from '@/stores/app-store'
-import { uid } from '@/lib/utils'
+import { noteFromText } from '@shared/brain'
 
 export function QuickCaptureButton(): JSX.Element {
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
-  const saveIdea = useAppStore((s) => s.saveIdea)
+  const saveBrainNotes = useAppStore((s) => s.saveBrainNotes)
 
   const submit = (): void => {
     const content = value.trim()
     if (!content) return
-    void saveIdea({ id: uid(), content, createdAt: new Date().toISOString(), archived: false })
+    // Into the Brain's inbox, to be sorted later.
+    void saveBrainNotes([noteFromText(content, new Date().toISOString())])
     setValue('')
     setOpen(false)
   }

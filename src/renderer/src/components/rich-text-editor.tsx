@@ -20,6 +20,12 @@ import {
   Underline
 } from 'lucide-react'
 import { toEditorHtml } from '@/lib/rich-text'
+import {
+  WikiSuggest,
+  refreshWikiLinks,
+  wikiLinksExtension,
+  type WikiLinkSource
+} from './wiki-links'
 import { cn } from '@/lib/utils'
 
 /**
@@ -40,7 +46,8 @@ export function RichTextEditor({
   className,
   contentClassName,
   style,
-  boxRef
+  boxRef,
+  links
 }: {
   /** Stored value: the editor's HTML, or plain text from before formatting. */
   value: string
@@ -55,6 +62,11 @@ export function RichTextEditor({
   style?: React.CSSProperties
   /** The scrolling box, for callers that scroll it themselves (the reader). */
   boxRef?: (el: HTMLDivElement | null) => void
+  /**
+   * Turn on `[[Título]]` links between notes (the Brain). Read when the
+   * editor is created: an editor either has links or it doesn't.
+   */
+  links?: WikiLinkSource
 }): JSX.Element {
   // What this editor last handed out, so its own echo is not loaded back in
   // (that would reset the caret on every keystroke).
@@ -63,6 +75,8 @@ export function RichTextEditor({
   onChangeRef.current = onChange
   const onBlurRef = useRef(onBlur)
   onBlurRef.current = onBlur
+  const linksRef = useRef(links)
+  linksRef.current = links
 
   const editor = useEditor({
     extensions: [
@@ -74,7 +88,8 @@ export function RichTextEditor({
         link: false
       }),
       Highlight,
-      Placeholder.configure({ placeholder: placeholder ?? '' })
+      Placeholder.configure({ placeholder: placeholder ?? '' }),
+      ...(links ? [wikiLinksExtension(linksRef)] : [])
     ],
     content: toEditorHtml(value),
     // Keep runs of spaces as typed; the default squeezes them into one, which
@@ -117,6 +132,12 @@ export function RichTextEditor({
     editor.commands.setContent(toEditorHtml(value), { emitUpdate: false })
   }, [editor, value])
 
+  // Links re-check which notes exist when the notes change.
+  const linksVersion = links?.version
+  useEffect(() => {
+    if (editor && linksVersion !== undefined) refreshWikiLinks(editor)
+  }, [editor, linksVersion])
+
   // The box scrolls itself, so the menu has to follow that scroll, not the window's.
   const [box, setBox] = useState<HTMLDivElement | null>(null)
 
@@ -136,6 +157,7 @@ export function RichTextEditor({
       }}
     >
       {editor && box && <FormatMenu editor={editor} scrollTarget={box} />}
+      {editor && links && <WikiSuggest editor={editor} source={links} />}
       <EditorContent editor={editor} className={contentClassName} />
     </div>
   )

@@ -136,6 +136,41 @@ export interface Idea {
   archived: boolean
 }
 
+/**
+ * A note in the Brain — an insight, a theory, a half-formed video idea.
+ *
+ * Notes link to each other by title, written `[[Título]]` anywhere in the
+ * body, and the links are read from the text itself: nothing to keep in
+ * step when a note is edited, and the body stays readable as plain text.
+ * Only on this PC; never synced to the shared boards.
+ */
+export interface BrainNote {
+  id: ID
+  title: string
+  /** The editor's HTML, or plain text for notes that never went through it. */
+  body: string
+  /** Ids of the topics it belongs to — a note can sit under several. */
+  topics: ID[]
+  /** Captured on the fly and not looked at yet: shown in the inbox. */
+  inbox?: boolean
+  pinned?: boolean
+  /** The card this note turned into, once it became a video. */
+  cardId?: ID
+  /** Where it was imported from, so an import never runs twice. */
+  fromCardId?: ID
+  fromIdeaId?: ID
+  createdAt: string
+  updatedAt: string
+}
+
+/** A subject notes gather under — in practice, an anime. */
+export interface BrainTopic {
+  id: ID
+  name: string
+  color: string
+  order: number
+}
+
 /** A single lane of a Kanban board (e.g. "Roteiro", "Gravação"). */
 export interface BoardColumn {
   id: ID
@@ -392,6 +427,8 @@ export interface AppData {
   habits: Habit[]
   plannerGoals: PlannerGoal[]
   planner: PlannerSettings
+  brainNotes: BrainNote[]
+  brainTopics: BrainTopic[]
 }
 
 /** One automatic snapshot of the whole app document. */

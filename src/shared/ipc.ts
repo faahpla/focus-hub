@@ -8,6 +8,8 @@ import type {
   BackupInfo,
   Board,
   BoardCard,
+  BrainNote,
+  BrainTopic,
   FlowApplyResult,
   FlowConfig,
   Idea,
@@ -44,6 +46,9 @@ export const IPC = {
   TASKS_DELETE: 'tasks:delete',
   IDEAS_SAVE: 'ideas:save',
   IDEAS_DELETE: 'ideas:delete',
+  BRAIN_SAVE_NOTES: 'brain:saveNotes',
+  BRAIN_DELETE_NOTE: 'brain:deleteNote',
+  BRAIN_SAVE_TOPICS: 'brain:saveTopics',
   BOARDS_SAVE: 'boards:save',
   BOARDS_DELETE: 'boards:delete',
   CARDS_SAVE: 'cards:save',
@@ -135,6 +140,9 @@ export interface FocusHubApi {
   saveTasks(tasks: Task[]): Promise<AppData>
   deleteTask(id: string): Promise<AppData>
   saveIdea(idea: Idea): Promise<AppData>
+  saveBrainNotes(notes: BrainNote[]): Promise<AppData>
+  deleteBrainNote(id: string): Promise<AppData>
+  saveBrainTopics(topics: BrainTopic[]): Promise<AppData>
   deleteIdea(id: string): Promise<AppData>
   saveBoard(board: Board): Promise<AppData>
   deleteBoard(id: string): Promise<AppData>
