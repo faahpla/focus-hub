@@ -70,7 +70,8 @@ export function ScriptReader({
   onCommit,
   onClose,
   rich,
-  exportName = 'Roteiro'
+  exportName = 'Roteiro',
+  readOnly
 }: {
   title: string
   value: string
@@ -79,6 +80,8 @@ export function ScriptReader({
   rich?: boolean
   /** The .txt's name when exported from here. */
   exportName?: string
+  /** Shown to read and record, not edited — a compilation's assembled script. */
+  readOnly?: boolean
 }): JSX.Element {
   // Autosaved while you write — a shutdown mid-script must not cost the script.
   const [text, setText, flush] = useAutosavedText(value, onCommit)
@@ -349,6 +352,7 @@ export function ScriptReader({
             <RichTextEditor
               // From the top: a script is read from its first line.
               autoFocus="start"
+              editable={!readOnly}
               value={text}
               onChange={setText}
               onBlur={flush}

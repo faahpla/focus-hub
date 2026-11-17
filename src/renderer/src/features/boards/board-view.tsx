@@ -30,6 +30,7 @@ import {
   CalendarDays,
   Check,
   CircleCheckBig,
+  Clapperboard,
   ListChecks,
   MoreHorizontal,
   Paperclip,
@@ -121,13 +122,9 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
   const mayCreateCards = canOnBoard(board, 'createCards')
   // Who a card belongs to, said from this account's side ("você" or a name).
   const me = useSyncStore((s) => s.status.userId)
-  const assigneeOf = (card: BoardCard): Person | undefined =>
-    personOf(board, card.assigneeId, me)
+  const assigneeOf = (card: BoardCard): Person | undefined => personOf(board, card.assigneeId, me)
 
-  const cards = useMemo(
-    () => allCards.filter((c) => c.boardId === board.id),
-    [allCards, board.id]
-  )
+  const cards = useMemo(() => allCards.filter((c) => c.boardId === board.id), [allCards, board.id])
   // A dropped column holds its new place until the saved board comes back;
   // without this it snaps home for a frame and then jumps again.
   const [columnOverride, setColumnOverride] = useState<BoardColumn[] | null>(null)
@@ -152,9 +149,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
 
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const laneOf = (id: string, source: Lanes): string | undefined =>
     source[id] ? id : Object.keys(source).find((k) => source[k].includes(id))
@@ -214,8 +209,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
 
     // Drop above or below the hovered card depending on which half we're on.
     const activeTop = active.rect.current.translated?.top
-    const dropsBelow =
-      activeTop !== undefined && activeTop > over.rect.top + over.rect.height / 2
+    const dropsBelow = activeTop !== undefined && activeTop > over.rect.top + over.rect.height / 2
 
     setLanes((prev) => {
       const from = laneOf(activeCardId, prev)
@@ -273,7 +267,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
       assets: [],
       createdAt: stamp,
       updatedAt: stamp,
-      order: (lanes[columnId]?.length ?? 0)
+      order: lanes[columnId]?.length ?? 0
     })
   }
 
@@ -305,9 +299,7 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
     if (orphans.length) {
       const target = remaining[0].id
       const base = lanes[target]?.length ?? 0
-      void saveCards(
-        orphans.map((c, i) => ({ ...c, columnId: target, order: base + i }))
-      )
+      void saveCards(orphans.map((c, i) => ({ ...c, columnId: target, order: base + i })))
     }
     void saveBoard({
       ...board,
@@ -333,32 +325,32 @@ export function BoardView({ board }: { board: Board }): JSX.Element {
             items={columns.map((c) => COLUMN_PREFIX + c.id)}
             strategy={horizontalListSortingStrategy}
           >
-          {columns.map((column) => (
-            <Column
-              key={column.id}
-              column={column}
-              cardIds={lanes[column.id] ?? []}
-              cardsById={cardsById}
-              canDelete={columns.length > 1}
-              canManage={mayManageColumns}
-              canCreate={mayCreateCards}
-              onAddCard={(title) => addCard(column.id, title)}
-              onRename={(name) => patchColumn(column.id, { name })}
-              onRecolor={(color) => patchColumn(column.id, { color })}
-              onToggleDone={() =>
-                patchColumn(column.id, { done: !column.done, cancelled: false })
-              }
-              onToggleCancelled={() =>
-                patchColumn(column.id, { cancelled: !column.cancelled, done: false })
-              }
-              onDelete={() => removeColumn(column.id)}
-              onOpenCard={setOpenCardId}
-              onToggleCardDone={toggleCardDone}
-              onCardContextMenu={setContextTarget}
-              columns={columns}
-              assigneeOf={assigneeOf}
-            />
-          ))}
+            {columns.map((column) => (
+              <Column
+                key={column.id}
+                column={column}
+                cardIds={lanes[column.id] ?? []}
+                cardsById={cardsById}
+                canDelete={columns.length > 1}
+                canManage={mayManageColumns}
+                canCreate={mayCreateCards}
+                onAddCard={(title) => addCard(column.id, title)}
+                onRename={(name) => patchColumn(column.id, { name })}
+                onRecolor={(color) => patchColumn(column.id, { color })}
+                onToggleDone={() =>
+                  patchColumn(column.id, { done: !column.done, cancelled: false })
+                }
+                onToggleCancelled={() =>
+                  patchColumn(column.id, { cancelled: !column.cancelled, done: false })
+                }
+                onDelete={() => removeColumn(column.id)}
+                onOpenCard={setOpenCardId}
+                onToggleCardDone={toggleCardDone}
+                onCardContextMenu={setContextTarget}
+                columns={columns}
+                assigneeOf={assigneeOf}
+              />
+            ))}
           </SortableContext>
 
           {mayManageColumns && (
@@ -558,10 +550,7 @@ function Column({
                   Coluna de conclusão
                 </span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={onToggleCancelled}
-                active={column.cancelled === true}
-              >
+              <DropdownMenuItem onSelect={onToggleCancelled} active={column.cancelled === true}>
                 <span className="flex items-center gap-2">
                   <Ban className="h-4 w-4" />
                   Coluna de cancelados
@@ -575,7 +564,8 @@ function Column({
                     onClick={() => onRecolor(color)}
                     className={cn(
                       'h-5 w-5 rounded-full transition-transform hover:scale-110',
-                      column.color === color && 'ring-2 ring-foreground/70 ring-offset-2 ring-offset-surface-elevated'
+                      column.color === color &&
+                        'ring-2 ring-foreground/70 ring-offset-2 ring-offset-surface-elevated'
                     )}
                     style={{ backgroundColor: `hsl(${color})` }}
                     aria-label={`Cor ${color}`}
@@ -760,6 +750,15 @@ function CardBody({
   const dropped = cancelled ?? false
   // Both states strike the text out; only the colour says which one it is.
   const struck = finished || dropped
+  // A TikTok made of shorts, or a short already used in one.
+  const isTikTok = card.kind === 'compilation'
+  const inTikTok = useAppStore(
+    (s) =>
+      !isTikTok &&
+      s.cards.some(
+        (c) => c.kind === 'compilation' && c.boardId === card.boardId && c.parts?.includes(card.id)
+      )
+  )
 
   return (
     <motion.div
@@ -845,8 +844,28 @@ function CardBody({
         </p>
       )}
 
-      {(assignee || steps.length > 0 || card.tags.length > 0 || card.dueDate || assetCount > 0) && (
+      {(assignee ||
+        steps.length > 0 ||
+        card.tags.length > 0 ||
+        card.dueDate ||
+        assetCount > 0 ||
+        isTikTok ||
+        inTikTok) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {isTikTok && (
+            <span className="flex items-center gap-1 rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              <Clapperboard className="h-3 w-3" />
+              TikTok · {card.parts?.length ?? 0} partes
+            </span>
+          )}
+          {inTikTok && (
+            <span
+              title="Já está num TikTok"
+              className="flex items-center rounded-md bg-primary/10 px-1 py-0.5 text-primary"
+            >
+              <Clapperboard className="h-3 w-3" />
+            </span>
+          )}
           {assignee && <PersonChip person={assignee} />}
           {assetCount > 0 && (
             <span className="flex items-center gap-1 rounded-md bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted-foreground">

@@ -265,20 +265,27 @@ export interface BoardCard {
   /** The B-roll shot list: the cutaways to film or find. Third tab of that pane. */
   bRoll?: string
   /**
-   * Publish-ready title, kept apart from the card's own name. The card is
-   * titled for finding it on the board; this is the one that gets copied into
-   * YouTube, and the two are rarely the same string.
+   * The TikTok caption. Shown on compilations, which is what goes to TikTok;
+   * on a short it is kept but no longer shown — shorts carry Reels instead.
    */
   publishTitle?: string
   /** Publish-ready description, kept apart from the script for easy copying. */
   description?: string
-  /**
-   * Reels caption and Facebook text. No longer shown — the fields were taken
-   * out of the card — but kept, so what was written in them is not lost and
-   * comes back if the fields ever do.
-   */
+  /** The Reels caption, shown on shorts. */
   reels?: string
+  /** The Facebook text. No longer shown, but kept so nothing written is lost. */
   facebook?: string
+  /**
+   * A TikTok made by joining 2–3 short cards of the same board. Unset on an
+   * ordinary card, which is one short video.
+   */
+  kind?: 'compilation'
+  /** A compilation's shorts, in the order they play. Ids of cards on its board. */
+  parts?: ID[]
+  /** A compilation's opening hook, before the first part. */
+  hook?: string
+  /** A compilation's closing — the call to action after the last part. */
+  outro?: string
   /** Publish-ready hashtags, stored verbatim so copy/paste round-trips. */
   hashtags?: string
   /**

@@ -350,6 +350,56 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     return { ok: true, folder }
   })
 
+  /*
+    A compilation's files, all in one folder: what the video editor needs to
+    put the TikTok together. "1 - audio.mp3", "2 - thumb.png"… so they sort
+    in playing order; the compilation's own files go unnumbered. A file that
+    isn't on this PC or in the cloud is counted, not fatal.
+  */
+  ipcMain.handle(IPC.DOWNLOAD_COMPILATION, async (_e, cardId: string) => {
+    const all = repo.getAll().cards
+    const comp = all.find((c) => c.id === cardId && c.kind === 'compilation')
+    if (!comp) return { ok: false, error: 'Compilado não encontrado.' }
+    const byId = new Map(all.map((c) => [c.id, c]))
+    const sources = [
+      ...(comp.parts ?? []).flatMap((id, i) => {
+        const part = byId.get(id)
+        return part ? (part.attachments ?? []).map((a) => ({ a, prefix: `${i + 1} - ` })) : []
+      }),
+      ...(comp.attachments ?? []).map((a) => ({ a, prefix: '' }))
+    ]
+    if (sources.length === 0) return { ok: false, error: 'Nenhuma parte tem arquivos anexados.' }
+
+    const folder = join(app.getPath('downloads'), 'Focus HUB', folderNameOf(comp.title))
+    await fs.mkdir(folder, { recursive: true })
+    let saved = 0
+    let missing = 0
+    for (const { a, prefix } of sources) {
+      const target = join(folder, fileNameOf(prefix + a.name))
+      if (a.storagePath) {
+        const res = await sync.downloadAttachment(a.storagePath)
+        if (res.ok && res.bytes) {
+          await fs.writeFile(target, res.bytes)
+          saved++
+        } else missing++
+      } else if (a.localPath) {
+        const copied = await fs.copyFile(a.localPath, target).then(
+          () => true,
+          () => false
+        )
+        if (copied) saved++
+        else missing++
+      }
+    }
+    if (saved === 0) {
+      return { ok: false, error: 'Nenhum arquivo veio: estão só no PC de quem anexou ou já saíram da nuvem.' }
+    }
+    await shell.openPath(folder)
+    return missing
+      ? { ok: false, folder, count: saved, error: `${missing} de ${sources.length} arquivos não vieram.` }
+      : { ok: true, folder, count: saved }
+  })
+
   // ---- Text export ----
   /*
     A card's texts as .txt files, next to the files downloaded from it —

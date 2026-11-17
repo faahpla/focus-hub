@@ -115,6 +115,7 @@ export const IPC = {
   ATTACH_FILES: 'attachments:attach',
   ATTACH_PATHS: 'attachments:attachPaths',
   DOWNLOAD_ATTACHMENTS: 'attachments:download',
+  DOWNLOAD_COMPILATION: 'attachments:downloadCompilation',
   REMOVE_ATTACHMENT: 'attachments:remove',
   TEXT_EXPORT: 'text:export',
   TEXT_REVEAL: 'text:reveal',
@@ -251,6 +252,11 @@ export interface FocusHubApi {
     cardId: string,
     attachmentId?: string
   ): Promise<SyncResult & { folder?: string }>
+  /**
+   * Every file of a compilation's parts, and its own, into one folder named
+   * after it — each prefixed with its part's number, in playing order.
+   */
+  downloadCompilation(cardId: string): Promise<SyncResult & { folder?: string; count?: number }>
   removeAttachment(cardId: string, attachmentId: string): Promise<SyncResult>
 
   /**

@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, KanbanSquare, Pencil, Plus, Ticket, Trash2, Users } from 'lucide-react'
+import {
+  ChevronDown,
+  Clapperboard,
+  KanbanSquare,
+  Pencil,
+  Plus,
+  Ticket,
+  Trash2,
+  Users
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +23,8 @@ import { useAppStore } from '@/stores/app-store'
 import { useBoardsUiStore } from '@/stores/boards-ui-store'
 import { BoardDialog } from './board-dialog'
 import { BoardView } from './board-view'
+import { CompilationShelf } from './compilation-shelf'
+import { canOnBoard } from './board-templates'
 import { JoinDialog } from '@/features/sharing/join-dialog'
 import { ShareDialog } from '@/features/sharing/share-dialog'
 
@@ -29,6 +40,7 @@ export function BoardsPage(): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [joining, setJoining] = useState(false)
+  const [mounting, setMounting] = useState(false)
 
   const active = boards.find((b) => b.id === selectedId) ?? boards[0]
 
@@ -156,6 +168,12 @@ export function BoardsPage(): JSX.Element {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* Join 2–3 shorts of this board into one TikTok. */}
+          {active && canOnBoard(active, 'createCards') && (
+            <Button size="sm" variant="secondary" onClick={() => setMounting(true)}>
+              <Clapperboard className="h-3.5 w-3.5" /> Montar TikTok
+            </Button>
+          )}
           <Button size="sm" variant="secondary" onClick={() => setSharing(true)}>
             <Users className="h-3.5 w-3.5" /> {active?.shared ? 'Acesso' : 'Compartilhar'}
           </Button>
@@ -212,6 +230,7 @@ export function BoardsPage(): JSX.Element {
       {creating && <BoardDialog onClose={() => setCreating(false)} onCreated={setSelectedId} />}
       {editing && active && <BoardDialog board={active} onClose={() => setEditing(false)} />}
       {sharing && active && <ShareDialog board={active} onClose={() => setSharing(false)} />}
+      {mounting && active && <CompilationShelf board={active} onClose={() => setMounting(false)} />}
       {joining && <JoinDialog onClose={() => setJoining(false)} onJoined={setSelectedId} />}
     </div>
   )

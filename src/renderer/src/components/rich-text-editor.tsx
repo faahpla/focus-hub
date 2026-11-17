@@ -47,7 +47,8 @@ export function RichTextEditor({
   contentClassName,
   style,
   boxRef,
-  links
+  links,
+  editable = true
 }: {
   /** Stored value: the editor's HTML, or plain text from before formatting. */
   value: string
@@ -67,6 +68,8 @@ export function RichTextEditor({
    * editor is created: an editor either has links or it doesn't.
    */
   links?: WikiLinkSource
+  /** Off for text shown but not edited here, like a compilation's assembled script. */
+  editable?: boolean
 }): JSX.Element {
   // What this editor last handed out, so its own echo is not loaded back in
   // (that would reset the caret on every keystroke).
@@ -92,6 +95,7 @@ export function RichTextEditor({
       ...(links ? [wikiLinksExtension(linksRef)] : [])
     ],
     content: toEditorHtml(value),
+    editable,
     // Keep runs of spaces as typed; the default squeezes them into one, which
     // would quietly rewrite indented lines the first time a text is edited.
     parseOptions: { preserveWhitespace: 'full' },
@@ -132,6 +136,10 @@ export function RichTextEditor({
     editor.commands.setContent(toEditorHtml(value), { emitUpdate: false })
   }, [editor, value])
 
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) editor.setEditable(editable)
+  }, [editor, editable])
+
   // Links re-check which notes exist when the notes change.
   const linksVersion = links?.version
   useEffect(() => {
@@ -156,7 +164,7 @@ export function RichTextEditor({
         editor.commands.focus('end')
       }}
     >
-      {editor && box && <FormatMenu editor={editor} scrollTarget={box} />}
+      {editor && box && editable && <FormatMenu editor={editor} scrollTarget={box} />}
       {editor && links && <WikiSuggest editor={editor} source={links} />}
       <EditorContent editor={editor} className={contentClassName} />
     </div>

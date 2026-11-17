@@ -119,6 +119,7 @@ const api: FocusHubApi = {
     ),
   downloadAttachments: (cardId, attachmentId) =>
     ipcRenderer.invoke(IPC.DOWNLOAD_ATTACHMENTS, cardId, attachmentId),
+  downloadCompilation: (cardId) => ipcRenderer.invoke(IPC.DOWNLOAD_COMPILATION, cardId),
   removeAttachment: (cardId, attachmentId) =>
     ipcRenderer.invoke(IPC.REMOVE_ATTACHMENT, cardId, attachmentId),
 

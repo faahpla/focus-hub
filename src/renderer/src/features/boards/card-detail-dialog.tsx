@@ -9,6 +9,7 @@ import {
   Copy,
   FileDown,
   FileText,
+  Film,
   ListChecks,
   Maximize2,
   MessageSquare,
@@ -48,6 +49,9 @@ import { useAutosavedText } from '@/hooks/use-autosave'
 import type { Board, BoardCard, CardAsset } from '@shared/types'
 import { canOnBoard, isCardCancelled, isCardDone } from './board-templates'
 import { AssetsDropZone, CardAttachments } from './card-attachments'
+import { CompilationPane } from './compilation-pane'
+import { assembledScript, compilationOf, isCompilation, partsOf } from './compilations'
+import { useNavigatorStore } from '@/stores/navigator-store'
 import { QuickPicks, byUse } from './quick-picks'
 import { ScriptReader } from './script-reader'
 import { RichTextEditor } from '@/components/rich-text-editor'
@@ -138,6 +142,11 @@ function CardEditor({
   const people = peopleOf(board, me)
   const assignee = personOf(board, card.assigneeId, me)
   const dropped = isCardCancelled(card, board.columns)
+  // A compilation is a TikTok made of shorts; every other card is one short.
+  const compilation = isCompilation(card)
+  const allCards = useAppStore((s) => s.cards)
+  const usedIn = compilation ? undefined : compilationOf(card, allCards)
+  const openCard = useNavigatorStore((s) => s.openCard)
 
   /** Take this card into a focus session — the card *is* the work. */
   const focusHere = (): void => {
@@ -169,9 +178,7 @@ function CardEditor({
     const t = next.trim()
     if (t && t !== card.title) patch({ title: t })
   })
-  const [notes, setNotes] = useAutosavedText(card.notes ?? '', (next) =>
-    patch({ notes: next })
-  )
+  const [notes, setNotes] = useAutosavedText(card.notes ?? '', (next) => patch({ notes: next }))
   const [publishTitle, setPublishTitle] = useAutosavedText(card.publishTitle ?? '', (next) =>
     patch({ publishTitle: next })
   )
@@ -181,6 +188,7 @@ function CardEditor({
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
   )
+  const [reels, setReels] = useAutosavedText(card.reels ?? '', (next) => patch({ reels: next }))
   const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
     patch({ summary: next })
   )
@@ -222,21 +230,32 @@ function CardEditor({
 
   /** Every text of the card in one .txt, each under its heading; empty ones left out. */
   const exportAll = (): void => {
-    const sections: [string, string][] = [
-      ['ROTEIRO', notes],
-      ['RESUMO', summary],
-      ['B-ROLL', bRoll],
-      ['ASSETS', assetsText],
-      ['TIKTOK', publishTitle],
-      ['YOUTUBE', description],
-      ['COMENTÁRIO FIXADO', pinnedComment]
-    ]
+    const sections: [string, string][] = compilation
+      ? [
+          ['ROTEIRO DO TIKTOK', assembledScript(card, useAppStore.getState().cards)],
+          ['ASSETS', assetsText],
+          ['TIKTOK', publishTitle],
+          ['COMENTÁRIO FIXADO', pinnedComment]
+        ]
+      : [
+          ['ROTEIRO', notes],
+          ['RESUMO', summary],
+          ['B-ROLL', bRoll],
+          ['ASSETS', assetsText],
+          ['REELS', reels],
+          ['YOUTUBE', description],
+          ['COMENTÁRIO FIXADO', pinnedComment]
+        ]
     const body = sections
       .map(([heading, value]) => [heading, toPlainText(value).trim()] as const)
       .filter(([, value]) => value)
       .map(([heading, value]) => `${heading}\n${'-'.repeat(heading.length)}\n${value}`)
       .join('\n\n')
-    void exportTextFile(folder, 'Card completo', `${folder}\n${'='.repeat(Math.min(folder.length, 60))}\n\n${body}\n`)
+    void exportTextFile(
+      folder,
+      'Card completo',
+      `${folder}\n${'='.repeat(Math.min(folder.length, 60))}\n\n${body}\n`
+    )
   }
 
   // One line, one entry - see linesToAssets.
@@ -407,9 +426,7 @@ function CardEditor({
                   >
                     Amanhã
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => patch({ dueDate: addDaysToKey(today(), 7) })}
-                  >
+                  <DropdownMenuItem onSelect={() => patch({ dueDate: addDaysToKey(today(), 7) })}>
                     Daqui a uma semana
                   </DropdownMenuItem>
                   {card.dueDate && (
@@ -467,6 +484,30 @@ function CardEditor({
                   </DropdownMenu>
                 </>
               )}
+
+              {/* A TikTok, or the TikTok this short went into. */}
+              {compilation && (
+                <>
+                  <span className="text-border">·</span>
+                  <span className="flex items-center gap-1.5 rounded-lg bg-primary/15 px-2 py-1 font-medium text-primary">
+                    <Clapperboard className="h-3.5 w-3.5" />
+                    TikTok · {partsOf(card, allCards).length} partes
+                  </span>
+                </>
+              )}
+              {usedIn && (
+                <>
+                  <span className="text-border">·</span>
+                  <button
+                    onClick={() => openCard(usedIn.id)}
+                    title="Abrir o compilado"
+                    className="no-drag flex items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-primary transition-colors hover:bg-primary/20"
+                  >
+                    <Clapperboard className="h-3.5 w-3.5" />
+                    No TikTok: {usedIn.title}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -474,72 +515,78 @@ function CardEditor({
           <div className="flex min-h-0 flex-1">
             {/* Script */}
             <div className="flex min-w-0 flex-1 flex-col p-6">
-              {/*
+              {compilation ? (
+                <CompilationPane card={card} board={board} />
+              ) : (
+                <>
+                  {/*
                 Panes over the same space: the script, a short summary and the
                 B-roll list. They're different lengths and read at different
                 moments, so tabs beat stacking them and splitting the room.
               */}
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1">
-                  {(Object.keys(panes) as (keyof typeof panes)[]).map((t) => {
-                    const { icon: Icon, value } = panes[t]
-                    const filled = value.trim()
-                    return (
-                      <button
-                        key={t}
-                        onClick={() => setPane(t)}
-                        className={cn(
-                          'no-drag flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors',
-                          pane === t
-                            ? 'bg-surface-elevated text-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        <Icon className="h-4 w-4 opacity-70" />
-                        {t}
-                        {filled && pane !== t && (
-                          <span className="h-1 w-1 rounded-full bg-primary" />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center gap-1">
-                  <CopyButton value={current.value} rich />
-                  <ExportTextButton folder={folder} name={pane} value={current.value} />
-                  {pane === 'Roteiro' && (
-                    <button
-                      onClick={() => setReaderOpen(true)}
-                      className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
-                    >
-                      <Maximize2 className="h-3 w-3" /> Modo leitura
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* Keyed so switching tabs swaps the field instead of reusing it
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      {(Object.keys(panes) as (keyof typeof panes)[]).map((t) => {
+                        const { icon: Icon, value } = panes[t]
+                        const filled = value.trim()
+                        return (
+                          <button
+                            key={t}
+                            onClick={() => setPane(t)}
+                            className={cn(
+                              'no-drag flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors',
+                              pane === t
+                                ? 'bg-surface-elevated text-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            <Icon className="h-4 w-4 opacity-70" />
+                            {t}
+                            {filled && pane !== t && (
+                              <span className="h-1 w-1 rounded-full bg-primary" />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <CopyButton value={current.value} rich />
+                      <ExportTextButton folder={folder} name={pane} value={current.value} />
+                      {pane === 'Roteiro' && (
+                        <button
+                          onClick={() => setReaderOpen(true)}
+                          className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                        >
+                          <Maximize2 className="h-3 w-3" /> Modo leitura
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Keyed so switching tabs swaps the field instead of reusing it
                   with the old pane's scroll and selection. */}
-              <RichTextEditor
-                key={pane}
-                value={current.value}
-                onChange={current.set}
-                onBlur={() =>
-                  current.value !== (card[current.field] ?? '') &&
-                  patch({ [current.field]: current.value })
-                }
-                placeholder={current.placeholder}
-                className="min-h-0 w-full flex-1 overflow-y-auto rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed transition-colors focus-within:border-primary/60 scrollbar-thin"
-              />
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                {!plain.trim()
-                  ? 'Vazio'
-                  : pane === 'Roteiro'
-                    ? `${plain.trim().split(/\s+/).length} palavras`
-                    : pane === 'B-roll'
-                      ? `${plain.split('\n').filter((l) => l.trim()).length} tomadas`
-                      : `${plain.trim().length} caracteres`}{' '}
-                · Selecione um trecho para formatar · {current.hint}
-              </p>
+                  <RichTextEditor
+                    key={pane}
+                    value={current.value}
+                    onChange={current.set}
+                    onBlur={() =>
+                      current.value !== (card[current.field] ?? '') &&
+                      patch({ [current.field]: current.value })
+                    }
+                    placeholder={current.placeholder}
+                    className="min-h-0 w-full flex-1 overflow-y-auto rounded-xl border border-input bg-surface/60 px-4 py-3 text-sm leading-relaxed transition-colors focus-within:border-primary/60 scrollbar-thin"
+                  />
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {!plain.trim()
+                      ? 'Vazio'
+                      : pane === 'Roteiro'
+                        ? `${plain.trim().split(/\s+/).length} palavras`
+                        : pane === 'B-roll'
+                          ? `${plain.split('\n').filter((l) => l.trim()).length} tomadas`
+                          : `${plain.trim().length} caracteres`}{' '}
+                    · Selecione um trecho para formatar · {current.hint}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Side rail */}
@@ -614,56 +661,87 @@ function CardEditor({
                 <CardAttachments card={card} board={board} />
               </AssetsDropZone>
 
-              {/* Publish title — separate from the card's own name, which is
-                  written to find it on the board, not to go on the video. */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
-                  </p>
-                  <div className="flex items-center">
-                    <CopyButton value={publishTitle} />
-                    <ExportTextButton folder={folder} name="TikTok" value={publishTitle} />
+              {/* The TikTok caption lives on the compilation — that's what goes to TikTok. */}
+              {compilation && (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
+                    </p>
+                    <div className="flex items-center">
+                      <CopyButton value={publishTitle} />
+                      <ExportTextButton folder={folder} name="TikTok" value={publishTitle} />
+                    </div>
                   </div>
+                  <textarea
+                    value={publishTitle}
+                    onChange={(e) => setPublishTitle(e.target.value)}
+                    onBlur={() =>
+                      publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
+                    }
+                    placeholder="A legenda que vai no TikTok…"
+                    rows={10}
+                    className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                  />
+                  {publishTitle.trim() && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {publishTitle.trim().length} caracteres
+                    </p>
+                  )}
                 </div>
-                <textarea
-                  value={publishTitle}
-                  onChange={(e) => setPublishTitle(e.target.value)}
-                  onBlur={() =>
-                    publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
-                  }
-                  placeholder="O título que vai no vídeo…"
-                  rows={10}
-                  className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-                {publishTitle.trim() && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {publishTitle.trim().length} caracteres
-                  </p>
-                )}
-              </div>
+              )}
+
+              {/* A short goes out as a Reel and on YouTube. */}
+              {!compilation && (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <Film className="h-3.5 w-3.5 text-muted-foreground" /> Reels
+                    </p>
+                    <div className="flex items-center">
+                      <CopyButton value={reels} />
+                      <ExportTextButton folder={folder} name="Reels" value={reels} />
+                    </div>
+                  </div>
+                  <textarea
+                    value={reels}
+                    onChange={(e) => setReels(e.target.value)}
+                    onBlur={() => reels !== (card.reels ?? '') && patch({ reels })}
+                    placeholder="A legenda que vai no Reels…"
+                    rows={6}
+                    className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                  />
+                  {reels.trim() && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {reels.trim().length} caracteres
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Description */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
-                  </p>
-                  <div className="flex items-center">
-                    <CopyButton value={description} />
-                    <ExportTextButton folder={folder} name="YouTube" value={description} />
+              {!compilation && (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" /> YouTube
+                    </p>
+                    <div className="flex items-center">
+                      <CopyButton value={description} />
+                      <ExportTextButton folder={folder} name="YouTube" value={description} />
+                    </div>
                   </div>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onBlur={() =>
+                      description !== (card.description ?? '') && patch({ description })
+                    }
+                    placeholder="A descrição que vai no post…"
+                    className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                  />
                 </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() =>
-                    description !== (card.description ?? '') && patch({ description })
-                  }
-                  placeholder="A descrição que vai no post…"
-                  className="no-drag min-h-[260px] w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                />
-              </div>
+              )}
 
               {/* Pinned comment — written last, pasted somewhere else. */}
               <div>
@@ -674,7 +752,11 @@ function CardEditor({
                   </p>
                   <div className="flex items-center">
                     <CopyButton value={pinnedComment} />
-                    <ExportTextButton folder={folder} name="Comentário fixado" value={pinnedComment} />
+                    <ExportTextButton
+                      folder={folder}
+                      name="Comentário fixado"
+                      value={pinnedComment}
+                    />
                   </div>
                 </div>
                 <textarea
@@ -856,7 +938,6 @@ function CardEditor({
           )}
         </DialogContent>
       </Dialog>
-
     </>
   )
 }
