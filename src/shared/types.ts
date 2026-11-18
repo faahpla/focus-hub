@@ -265,13 +265,14 @@ export interface BoardCard {
   /** The B-roll shot list: the cutaways to film or find. Third tab of that pane. */
   bRoll?: string
   /**
-   * The TikTok caption. Shown on compilations, which is what goes to TikTok;
-   * on a short it is kept but no longer shown — shorts carry Reels instead.
+   * What goes on TikTok: the title on a short, the caption on a compilation.
+   * Kept apart from the card's own name, which is written to find it on the
+   * board.
    */
   publishTitle?: string
   /** Publish-ready description, kept apart from the script for easy copying. */
   description?: string
-  /** The Reels caption, shown on shorts. */
+  /** The Reels caption. No longer shown, but kept so nothing written is lost. */
   reels?: string
   /** The Facebook text. No longer shown, but kept so nothing written is lost. */
   facebook?: string

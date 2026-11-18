@@ -9,7 +9,6 @@ import {
   Copy,
   FileDown,
   FileText,
-  Film,
   ListChecks,
   Maximize2,
   MessageSquare,
@@ -188,7 +187,6 @@ function CardEditor({
   const [pinnedComment, setPinnedComment] = useAutosavedText(card.pinnedComment ?? '', (next) =>
     patch({ pinnedComment: next })
   )
-  const [reels, setReels] = useAutosavedText(card.reels ?? '', (next) => patch({ reels: next }))
   const [summary, setSummary] = useAutosavedText(card.summary ?? '', (next) =>
     patch({ summary: next })
   )
@@ -242,7 +240,7 @@ function CardEditor({
           ['RESUMO', summary],
           ['B-ROLL', bRoll],
           ['ASSETS', assetsText],
-          ['REELS', reels],
+          ['TIKTOK', publishTitle],
           ['YOUTUBE', description],
           ['COMENTÁRIO FIXADO', pinnedComment]
         ]
@@ -661,63 +659,36 @@ function CardEditor({
                 <CardAttachments card={card} board={board} />
               </AssetsDropZone>
 
-              {/* The TikTok caption lives on the compilation — that's what goes to TikTok. */}
-              {compilation && (
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <p className="flex items-center gap-1.5 text-sm font-medium">
-                      <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
-                    </p>
-                    <div className="flex items-center">
-                      <CopyButton value={publishTitle} />
-                      <ExportTextButton folder={folder} name="TikTok" value={publishTitle} />
-                    </div>
+              {/* Publish title — separate from the card's own name, which is
+                  written to find it on the board, not to go on the video. */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Type className="h-3.5 w-3.5 text-muted-foreground" /> TikTok
+                  </p>
+                  <div className="flex items-center">
+                    <CopyButton value={publishTitle} />
+                    <ExportTextButton folder={folder} name="TikTok" value={publishTitle} />
                   </div>
-                  <textarea
-                    value={publishTitle}
-                    onChange={(e) => setPublishTitle(e.target.value)}
-                    onBlur={() =>
-                      publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
-                    }
-                    placeholder="A legenda que vai no TikTok…"
-                    rows={10}
-                    className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                  />
-                  {publishTitle.trim() && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {publishTitle.trim().length} caracteres
-                    </p>
-                  )}
                 </div>
-              )}
-
-              {/* A short goes out as a Reel and on YouTube. */}
-              {!compilation && (
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <p className="flex items-center gap-1.5 text-sm font-medium">
-                      <Film className="h-3.5 w-3.5 text-muted-foreground" /> Reels
-                    </p>
-                    <div className="flex items-center">
-                      <CopyButton value={reels} />
-                      <ExportTextButton folder={folder} name="Reels" value={reels} />
-                    </div>
-                  </div>
-                  <textarea
-                    value={reels}
-                    onChange={(e) => setReels(e.target.value)}
-                    onBlur={() => reels !== (card.reels ?? '') && patch({ reels })}
-                    placeholder="A legenda que vai no Reels…"
-                    rows={6}
-                    className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-xs leading-relaxed placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
-                  />
-                  {reels.trim() && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {reels.trim().length} caracteres
-                    </p>
-                  )}
-                </div>
-              )}
+                <textarea
+                  value={publishTitle}
+                  onChange={(e) => setPublishTitle(e.target.value)}
+                  onBlur={() =>
+                    publishTitle !== (card.publishTitle ?? '') && patch({ publishTitle })
+                  }
+                  placeholder={
+                    compilation ? 'A legenda que vai no TikTok…' : 'O título que vai no vídeo…'
+                  }
+                  rows={10}
+                  className="no-drag w-full resize-y rounded-xl border border-input bg-surface/60 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground/60 focus:border-primary/60 focus:outline-none scrollbar-thin"
+                />
+                {publishTitle.trim() && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {publishTitle.trim().length} caracteres
+                  </p>
+                )}
+              </div>
 
               {/* Description */}
               {!compilation && (
