@@ -51,12 +51,25 @@ import { AssetsDropZone, CardAttachments } from './card-attachments'
 import { CompilationPane } from './compilation-pane'
 import { assembledScript, compilationOf, isCompilation, partsOf } from './compilations'
 import { useNavigatorStore } from '@/stores/navigator-store'
+import { useToastStore } from '@/stores/toast-store'
 import { QuickPicks, byUse } from './quick-picks'
 import { ScriptReader } from './script-reader'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import { copyRichText, toPlainText } from '@/lib/rich-text'
 import { ExportTextButton, exportTextFile } from '@/components/export-text-button'
 import { cn, uid } from '@/lib/utils'
+
+/** How each field's .txt is named when "Exportar tudo" saves them one by one. */
+const FILE_NAMES: Record<string, string> = {
+  ROTEIRO: 'Roteiro',
+  RESUMO: 'Resumo',
+  'B-ROLL': 'B-roll',
+  ASSETS: 'Assets',
+  TIKTOK: 'TikTok',
+  YOUTUBE: 'YouTube',
+  'COMENTÁRIO FIXADO': 'Comentário fixado',
+  'ROTEIRO DO TIKTOK': 'Roteiro do TikTok'
+}
 
 /** Small copy-to-clipboard affordance used next to every publishable field. */
 function CopyButton({
@@ -244,16 +257,65 @@ function CardEditor({
           ['YOUTUBE', description],
           ['COMENTÁRIO FIXADO', pinnedComment]
         ]
-    const body = sections
-      .map(([heading, value]) => [heading, toPlainText(value).trim()] as const)
-      .filter(([, value]) => value)
-      .map(([heading, value]) => `${heading}\n${'-'.repeat(heading.length)}\n${value}`)
-      .join('\n\n')
-    void exportTextFile(
-      folder,
-      'Card completo',
-      `${folder}\n${'='.repeat(Math.min(folder.length, 60))}\n\n${body}\n`
-    )
+    // One .txt per filled field, all in the card's folder — each one goes to a
+    // different place (the script to the voice-over, the B-roll to the editor).
+    // The attached files (audio, thumb, clips…) land in the same folder.
+    const files = sections.filter(([, value]) => toPlainText(value).trim())
+    const live = useAppStore.getState().cards
+    const hasAttachments =
+      (card.attachments?.length ?? 0) > 0 ||
+      (compilation && partsOf(card, live).some((p) => (p.attachments?.length ?? 0) > 0))
+    const push = useToastStore.getState().push
+    if (files.length === 0 && !hasAttachments) {
+      push({
+        title: 'Nada para exportar',
+        lines: ['Os campos deste card estão vazios e não há anexos.']
+      })
+      return
+    }
+    void (async () => {
+      const texts: string[] = []
+      for (const [heading, value] of files) {
+        const name = FILE_NAMES[heading] ?? heading
+        const path = await exportTextFile(folder, name, value, true)
+        if (path) texts.push(path)
+      }
+      const attached = hasAttachments
+        ? await window.focusHub.exportCardFiles(card.id, folder)
+        : { ok: true, saved: [] as string[], missing: 0 }
+      const all = [...texts, ...attached.saved]
+      if (all.length === 0) {
+        push({
+          title: 'Não deu para exportar',
+          lines: attached.error ? [attached.error] : undefined,
+          variant: 'warning'
+        })
+        return
+      }
+      const plural = (n: number, one: string, many: string): string =>
+        `${n} ${n === 1 ? one : many}`
+      const parts = [
+        texts.length ? `${texts.length} .txt` : '',
+        attached.saved.length ? plural(attached.saved.length, 'anexo', 'anexos') : ''
+      ].filter(Boolean)
+      const lines = [`Downloads › Focus HUB › ${folder}`]
+      if (attached.missing > 0) {
+        lines.push(
+          `${plural(attached.missing, 'anexo não veio', 'anexos não vieram')} — ainda não subiu para a nuvem ou está só no PC de quem anexou.`
+        )
+      }
+      push({
+        title: `${parts.join(' + ')} salvos`,
+        lines,
+        hint: 'Clique para abrir a pasta',
+        onClick: () => window.focusHub.revealExport(all[0]),
+        variant:
+          texts.length === files.length && attached.missing === 0 && !attached.error
+            ? 'success'
+            : 'warning',
+        duration: 8000
+      })
+    })()
   }
 
   // One line, one entry - see linesToAssets.
@@ -347,7 +409,7 @@ function CardEditor({
                 <CopyButton value={title.trim()} />
                 <button
                   onClick={exportAll}
-                  title="Exportar todos os textos do card num .txt só"
+                  title="Exportar cada texto do card num .txt separado, mais os anexos, tudo na mesma pasta"
                   className="no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                 >
                   <FileDown className="h-3 w-3" /> Exportar tudo

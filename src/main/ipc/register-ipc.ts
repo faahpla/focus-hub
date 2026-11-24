@@ -392,11 +392,19 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
       }
     }
     if (saved === 0) {
-      return { ok: false, error: 'Nenhum arquivo veio: estão só no PC de quem anexou ou já saíram da nuvem.' }
+      return {
+        ok: false,
+        error: 'Nenhum arquivo veio: estão só no PC de quem anexou ou já saíram da nuvem.'
+      }
     }
     await shell.openPath(folder)
     return missing
-      ? { ok: false, folder, count: saved, error: `${missing} de ${sources.length} arquivos não vieram.` }
+      ? {
+          ok: false,
+          folder,
+          count: saved,
+          error: `${missing} de ${sources.length} arquivos não vieram.`
+        }
       : { ok: true, folder, count: saved }
   })
 
@@ -428,6 +436,55 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Não deu para salvar.' }
     }
+  })
+
+  ipcMain.handle(IPC.EXPORT_CARD_FILES, async (_e, cardId: string, folder: string) => {
+    const all = repo.getAll().cards
+    const card = all.find((c) => c.id === cardId)
+    if (!card) return { ok: false, saved: [], missing: 0, error: 'Card não encontrado.' }
+    const byId = new Map(all.map((c) => [c.id, c]))
+    const sources = [
+      ...(card.kind === 'compilation' ? (card.parts ?? []) : []).flatMap((id, i) => {
+        const part = byId.get(id)
+        return part ? (part.attachments ?? []).map((a) => ({ a, prefix: `${i + 1} - ` })) : []
+      }),
+      ...(card.attachments ?? []).map((a) => ({ a, prefix: '' }))
+    ]
+    if (sources.length === 0) return { ok: true, saved: [], missing: 0 }
+
+    // Same folder the .txt files went to, whatever the title says right now.
+    const dir = join(exportsRoot(), folderNameOf(String(folder ?? '') || card.title))
+    const saved: string[] = []
+    let missing = 0
+    try {
+      await fs.mkdir(dir, { recursive: true })
+      for (const { a, prefix } of sources) {
+        const target = join(dir, fileNameOf(prefix + a.name))
+        let ok = false
+        if (a.storagePath) {
+          const res = await sync.downloadAttachment(a.storagePath)
+          if (res.ok && res.bytes) {
+            await fs.writeFile(target, res.bytes)
+            ok = true
+          }
+        } else if (a.localPath) {
+          ok = await fs.copyFile(a.localPath, target).then(
+            () => true,
+            () => false
+          )
+        }
+        if (ok) saved.push(target)
+        else missing++
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        saved,
+        missing: sources.length - saved.length,
+        error: err instanceof Error ? err.message : 'Não deu para salvar os arquivos.'
+      }
+    }
+    return { ok: missing === 0, saved, missing }
   })
 
   ipcMain.on(IPC.TEXT_REVEAL, (_e, path: string) => {
@@ -518,7 +575,9 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
       changed(repo.saveFinance(entity, items))
   )
   ipcMain.handle(IPC.FINANCE_DELETE, (_e, entity: FinanceEntity, id: string) =>
-    guard(`antes de excluir ${FINANCE_LABEL[entity]}`, () => changed(repo.deleteFinance(entity, id)))
+    guard(`antes de excluir ${FINANCE_LABEL[entity]}`, () =>
+      changed(repo.deleteFinance(entity, id))
+    )
   )
   ipcMain.handle(IPC.FINANCE_DELETE_MANY_TX, (_e, ids: string[]) =>
     guard('antes de excluir transações', () => changed(repo.deleteTransactions(ids)))
@@ -564,7 +623,7 @@ export function registerIpc({ repo, flow, windows, backups, sync }: Deps): void 
     const res = await dialog.showOpenDialog({
       properties: [kind === 'folder' ? 'openDirectory' : 'openFile']
     })
-    return res.canceled ? null : res.filePaths[0] ?? null
+    return res.canceled ? null : (res.filePaths[0] ?? null)
   })
 
   ipcMain.handle(IPC.OPEN_PATH, async (_e, value: string) => {

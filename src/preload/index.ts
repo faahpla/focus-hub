@@ -90,8 +90,7 @@ const api: FocusHubApi = {
   onDataChanged: (cb) => subscribe(IPC.EVT_DATA_CHANGED, (_e, data) => cb(data as AppData)),
 
   getSyncStatus: () => ipcRenderer.invoke(IPC.SYNC_STATUS),
-  onSyncStatus: (cb) =>
-    subscribe(IPC.EVT_SYNC_STATUS, (_e, status) => cb(status as SyncStatus)),
+  onSyncStatus: (cb) => subscribe(IPC.EVT_SYNC_STATUS, (_e, status) => cb(status as SyncStatus)),
   signUp: (email, password) => ipcRenderer.invoke(IPC.SYNC_SIGN_UP, email, password),
   signIn: (email, password) => ipcRenderer.invoke(IPC.SYNC_SIGN_IN, email, password),
   signOut: () => ipcRenderer.invoke(IPC.SYNC_SIGN_OUT),
@@ -124,12 +123,12 @@ const api: FocusHubApi = {
     ipcRenderer.invoke(IPC.REMOVE_ATTACHMENT, cardId, attachmentId),
 
   exportText: (folder, name, text) => ipcRenderer.invoke(IPC.TEXT_EXPORT, folder, name, text),
-  revealExport: (path) => ipcRenderer.send(IPC.TEXT_REVEAL, path)
+  revealExport: (path) => ipcRenderer.send(IPC.TEXT_REVEAL, path),
+  exportCardFiles: (cardId, folder) => ipcRenderer.invoke(IPC.EXPORT_CARD_FILES, cardId, folder)
 }
 
 function subscribe(channel: string, listener: (...args: unknown[]) => void): () => void {
-  const wrapped = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void =>
-    listener(_e, ...args)
+  const wrapped = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => listener(_e, ...args)
   ipcRenderer.on(channel, wrapped)
   return () => ipcRenderer.removeListener(channel, wrapped)
 }

@@ -8,9 +8,16 @@ import { cn } from '@/lib/utils'
  * Save text as a .txt in Downloads › Focus HUB › <folder>, and say where.
  * Formatted text goes out clean — the reader of a .txt sees no markup.
  */
-export async function exportTextFile(folder: string, name: string, text: string): Promise<boolean> {
+export async function exportTextFile(
+  folder: string,
+  name: string,
+  text: string,
+  /** Several files at once: no notice per file, the caller says it once. */
+  quiet = false
+): Promise<string | null> {
   const push = useToastStore.getState().push
   const res = await window.focusHub.exportText(folder, name, toPlainText(text))
+  if (res.ok && res.path && quiet) return res.path
   if (res.ok && res.path) {
     const path = res.path
     push({
@@ -21,10 +28,14 @@ export async function exportTextFile(folder: string, name: string, text: string)
       variant: 'success',
       duration: 7000
     })
-    return true
+    return path
   }
-  push({ title: 'Não deu para exportar', lines: res.error ? [res.error] : undefined, variant: 'warning' })
-  return false
+  push({
+    title: 'Não deu para exportar',
+    lines: res.error ? [res.error] : undefined,
+    variant: 'warning'
+  })
+  return null
 }
 
 /** The ".txt" next to a field's "Copiar". */

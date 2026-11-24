@@ -20,12 +20,7 @@ import type {
   Task,
   UpdateStatus
 } from './types'
-import type {
-  BudgetPlan,
-  FinanceEntity,
-  FinanceEntityMap,
-  FinanceSettings
-} from './finance'
+import type { BudgetPlan, FinanceEntity, FinanceEntityMap, FinanceSettings } from './finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from './planner'
 import type {
   BoardInvite,
@@ -118,6 +113,7 @@ export const IPC = {
   DOWNLOAD_COMPILATION: 'attachments:downloadCompilation',
   REMOVE_ATTACHMENT: 'attachments:remove',
   TEXT_EXPORT: 'text:export',
+  EXPORT_CARD_FILES: 'attachments:exportCardFiles',
   TEXT_REVEAL: 'text:reveal',
 
   // Quick capture (main -> renderer + renderer -> main)
@@ -263,7 +259,21 @@ export interface FocusHubApi {
    * Save text as a .txt in Downloads/Focus HUB/<folder>/<name>.txt. Never
    * overwrites: a name already there gets " (2)", " (3)"…
    */
-  exportText(folder: string, name: string, text: string): Promise<{ ok: boolean; path?: string; error?: string }>
+  exportText(
+    folder: string,
+    name: string,
+    text: string
+  ): Promise<{ ok: boolean; path?: string; error?: string }>
   /** Show an exported file in Explorer. Only paths under Downloads/Focus HUB. */
   revealExport(path: string): void
+  /**
+   * "Exportar tudo": the card's attached files into the same folder as its
+   * .txt exports, without opening it. A compilation brings its parts' files
+   * too, numbered in playing order. Files not on this PC nor in the cloud
+   * are counted as missing, not fatal.
+   */
+  exportCardFiles(
+    cardId: string,
+    folder: string
+  ): Promise<{ ok: boolean; saved: string[]; missing: number; error?: string }>
 }
