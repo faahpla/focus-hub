@@ -22,6 +22,7 @@ import type {
 } from './types'
 import type { BudgetPlan, FinanceEntity, FinanceEntityMap, FinanceSettings } from './finance'
 import type { PlannerEntity, PlannerEntityMap, PlannerSettings } from './planner'
+import type { BrowserProfile, ChannelsState, Platform } from './channels'
 import type {
   BoardInvite,
   BoardMember,
@@ -116,6 +117,17 @@ export const IPC = {
   EXPORT_CARD_FILES: 'attachments:exportCardFiles',
   TEXT_REVEAL: 'text:reveal',
 
+  // Channels: the user's accounts on each platform and their numbers
+  CHANNELS_GET: 'channels:get',
+  CHANNELS_CONNECT: 'channels:connect',
+  CHANNELS_DISCONNECT: 'channels:disconnect',
+  CHANNELS_REFRESH: 'channels:refresh',
+  CHANNELS_SET_BOARD: 'channels:setBoard',
+  CHANNELS_LINK: 'channels:link',
+  CHANNELS_BROWSERS: 'channels:browsers',
+  CHANNELS_SIGNIN_OPEN: 'channels:signInOpen',
+  CHANNELS_SIGNIN_CANCEL: 'channels:signInCancel',
+
   // Quick capture (main -> renderer + renderer -> main)
   QUICK_CAPTURE_SAVE: 'quickCapture:save',
   QUICK_CAPTURE_CLOSE: 'quickCapture:close',
@@ -126,7 +138,8 @@ export const IPC = {
   EVT_GLOBAL_TOGGLE_PAUSE: 'evt:globalTogglePause',
   EVT_DATA_CHANGED: 'evt:dataChanged',
   EVT_UPDATE_STATUS: 'evt:updateStatus',
-  EVT_SYNC_STATUS: 'evt:syncStatus'
+  EVT_SYNC_STATUS: 'evt:syncStatus',
+  EVT_CHANNELS: 'evt:channels'
 } as const
 
 export interface FocusHubApi {
@@ -276,4 +289,21 @@ export interface FocusHubApi {
     cardId: string,
     folder: string
   ): Promise<{ ok: boolean; saved: string[]; missing: number; error?: string }>
+  // ---- Channels ----
+  getChannels(): Promise<ChannelsState>
+  /** Opens the platform's sign-in in the browser; resolves once it is done or given up. */
+  connectChannel(platform: Platform): Promise<{ ok: boolean; error?: string; accountId?: string }>
+  disconnectChannel(accountId: string): Promise<void>
+  /** Update one account's numbers now, or all of them. */
+  refreshChannels(accountId?: string): Promise<{ ok: boolean; error?: string }>
+  /** Which board (channel) an account publishes for. */
+  setChannelBoard(accountId: string, boardId: string | null): Promise<void>
+  /** Tie a published video to its card by hand; null = to no card, undefined = back to automatic. */
+  linkVideo(videoId: string, cardId: string | null | undefined): Promise<void>
+  onChannels(cb: (state: ChannelsState) => void): () => void
+  /** Browser profiles on this PC, to open a login in the one the channel lives in. */
+  browserProfiles(): Promise<BrowserProfile[]>
+  /** Opens the waiting login; null = the default browser. */
+  openSignIn(profileId: string | null): Promise<boolean>
+  cancelSignIn(): Promise<void>
 }

@@ -41,6 +41,12 @@
     /* Marca-texto in the card's formatted texts. */
     --highlight: 48 96% 58%;
 
+    /* Each platform's mark on the Channels page — the same in every theme. */
+    --platform-youtube: 0 85% 58%;
+    --platform-tiktok: 178 80% 50%;
+    --platform-instagram: 330 80% 60%;
+    --platform-facebook: 214 89% 60%;
+
     --border: 240 14% 18%;
     --input: 240 14% 20%;
     --ring: 250 82% 68%;

@@ -17,6 +17,7 @@ import type {
 import type { BudgetPlan, FinanceEntity, FinanceSettings } from '../shared/finance'
 import type { PlannerEntity, PlannerSettings } from '../shared/planner'
 import type { SyncStatus } from '../shared/sync'
+import type { ChannelsState } from '../shared/channels'
 
 const api: FocusHubApi = {
   getAllData: () => ipcRenderer.invoke(IPC.DATA_GET_ALL),
@@ -124,7 +125,19 @@ const api: FocusHubApi = {
 
   exportText: (folder, name, text) => ipcRenderer.invoke(IPC.TEXT_EXPORT, folder, name, text),
   revealExport: (path) => ipcRenderer.send(IPC.TEXT_REVEAL, path),
-  exportCardFiles: (cardId, folder) => ipcRenderer.invoke(IPC.EXPORT_CARD_FILES, cardId, folder)
+  exportCardFiles: (cardId, folder) => ipcRenderer.invoke(IPC.EXPORT_CARD_FILES, cardId, folder),
+
+  getChannels: () => ipcRenderer.invoke(IPC.CHANNELS_GET),
+  connectChannel: (platform) => ipcRenderer.invoke(IPC.CHANNELS_CONNECT, platform),
+  disconnectChannel: (accountId) => ipcRenderer.invoke(IPC.CHANNELS_DISCONNECT, accountId),
+  refreshChannels: (accountId) => ipcRenderer.invoke(IPC.CHANNELS_REFRESH, accountId),
+  setChannelBoard: (accountId, boardId) =>
+    ipcRenderer.invoke(IPC.CHANNELS_SET_BOARD, accountId, boardId),
+  linkVideo: (videoId, cardId) => ipcRenderer.invoke(IPC.CHANNELS_LINK, videoId, cardId),
+  onChannels: (cb) => subscribe(IPC.EVT_CHANNELS, (_e, state) => cb(state as ChannelsState)),
+  browserProfiles: () => ipcRenderer.invoke(IPC.CHANNELS_BROWSERS),
+  openSignIn: (profileId) => ipcRenderer.invoke(IPC.CHANNELS_SIGNIN_OPEN, profileId),
+  cancelSignIn: () => ipcRenderer.invoke(IPC.CHANNELS_SIGNIN_CANCEL)
 }
 
 function subscribe(channel: string, listener: (...args: unknown[]) => void): () => void {

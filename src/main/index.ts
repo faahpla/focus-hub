@@ -4,6 +4,8 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { registerIpc } from './ipc/register-ipc'
+import { registerChannelsIpc } from './ipc/register-channels-ipc'
+import { ChannelsService } from './services/channels/channels-service'
 import { registerAppScheme, serveLocalMedia, serveRenderer } from './register-protocol'
 import { BackupService } from './services/backup-service'
 import { FlowService } from './services/flow-service'
@@ -274,6 +276,12 @@ if (!gotLock) {
     )
     registerIpc({ repo, flow, windows, backups, sync })
     void sync.start()
+
+    // Channels: the user's own accounts and their numbers, on this PC only.
+    logLaunch('  etapa: canais')
+    const channels = new ChannelsService((state) => windows.broadcast(IPC.EVT_CHANNELS, state))
+    registerChannelsIpc(channels)
+    channels.start()
     ipcMain.handle(IPC.APP_GET_INFO, async () => ({
       isPackaged: app.isPackaged,
       elevated: await flow.isElevated(),

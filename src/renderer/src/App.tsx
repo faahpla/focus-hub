@@ -13,6 +13,7 @@ import { BoardsPage } from '@/features/boards/boards-page'
 import { BrainPage } from '@/features/brain/brain-page'
 import { FinancePage } from '@/features/finance/finance-page'
 import { StatsPage } from '@/features/stats/stats-page'
+import { ChannelsPage } from '@/features/channels/channels-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { QuickCapturePage } from '@/features/quick-capture/quick-capture-page'
 import { CommandPalette } from '@/features/search/command-palette'
@@ -20,6 +21,7 @@ import { CardDialogHost } from '@/features/boards/card-dialog-host'
 import { useAppStore } from '@/stores/app-store'
 import { useSessionStore } from '@/stores/session-store'
 import { useSyncStore } from '@/stores/sync-store'
+import { useChannelsStore } from '@/stores/channels-store'
 import { useToastStore } from '@/stores/toast-store'
 import { useThemeEffect } from '@/hooks/use-theme'
 
@@ -45,6 +47,7 @@ function MainApp(): JSX.Element {
   }, [init])
 
   useEffect(() => useSyncStore.getState().init(), [])
+  useEffect(() => useChannelsStore.getState().init(), [])
 
   useEffect(() => {
     const offTray = window.focusHub.onTrayNewSession(() => navigate('/'))
@@ -92,6 +95,7 @@ function MainApp(): JSX.Element {
           {/* The Brain took over from the ideas list. */}
           <Route path="/ideas" element={<Navigate to="/brain" replace />} />
           <Route path="/finance" element={<FinancePage />} />
+          <Route path="/canais" element={<ChannelsPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

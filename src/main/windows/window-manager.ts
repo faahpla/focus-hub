@@ -68,7 +68,11 @@ export class WindowManager {
       }
     })
 
-    win.on('ready-to-show', () => win.show())
+    // Always opens filling the screen.
+    win.on('ready-to-show', () => {
+      win.maximize()
+      win.show()
+    })
     win.webContents.setWindowOpenHandler((details) => {
       shell.openExternal(details.url)
       return { action: 'deny' }
